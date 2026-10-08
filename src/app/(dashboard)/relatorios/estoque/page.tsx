@@ -7,8 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { db } from "@/lib/mocks";
+import { useRoleGuard } from "@/hooks/useRoleGuard";
 
 export default function RelEstoquePage() {
+  useRoleGuard(["GESTOR"]);
   const totalItems = db.parts.length;
   const lowStock = db.parts.filter(p=>p.stock<=p.minStock).length;
   const entradas = db.stockMovements.filter(m=>m.type==="Entrada").length;

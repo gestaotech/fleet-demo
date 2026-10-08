@@ -10,8 +10,10 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { db } from "@/lib/mocks";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useRoleGuard } from "@/hooks/useRoleGuard";
 
 export default function FrotaDetailPage() {
+  useRoleGuard(["GESTOR", "MANUTENCAO"]);
   const params = useParams();
   const id = params.id as string;
   const vehicle = db.vehicles.find(v => v.id === id);

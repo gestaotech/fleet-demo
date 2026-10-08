@@ -59,3 +59,75 @@ export function updateWorkOrderStatus(woId: string, status: typeof workOrders[0]
   const wo = findWorkOrder(woId);
   if (wo) wo.status = status;
 }
+export function createWorkOrder(data: { vehicleId: string; mechanicId: string; problem: string; observations?: string }) {
+  const newId = `OS-${String(workOrders.length + 1).padStart(5, '0')}`;
+  const now = new Date().toISOString();
+  const wo = {
+    id: newId,
+    vehicleId: data.vehicleId,
+    mechanicId: data.mechanicId,
+    status: 'Aberta' as const,
+    problem: data.problem,
+    observations: data.observations ?? '',
+    services: [] as string[],
+    items: [] as typeof workOrders[0]['items'],
+    createdAt: now,
+    updatedAt: now,
+  };
+  workOrders.unshift(wo);
+  return wo;
+}
+export function addServiceToWorkOrder(woId: string, service: string) {
+  const wo = findWorkOrder(woId);
+  if (wo) {
+    wo.services.push(service);
+    wo.updatedAt = new Date().toISOString();
+  }
+}
+export function finalizeWorkOrder(woId: string) {
+  const wo = findWorkOrder(woId);
+  if (wo) {
+    wo.status = 'Finalizada';
+    wo.updatedAt = new Date().toISOString();
+  }
+}
+
+// Stock specific mutations
+export function addStockEntry(partId: string, quantity: number, _observation: string) {
+  const part = findPart(partId);
+  if (!part) return false;
+  part.stock += quantity;
+  addStockMovement({
+    id: `mov-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    date: new Date().toISOString(),
+    type: 'Entrada',
+    partId,
+    quantity,
+    origin: 'Entrada manual',
+    responsible: 'Almoxarifado',
+  });
+  void _observation;
+  return true;
+}
+
+export function adjustStock(partId: string, newQuantity: number, _reason: string) {
+  const part = findPart(partId);
+  if (!part) return false;
+  const delta = newQuantity - part.stock;
+  part.stock = newQuantity;
+  addStockMovement({
+    id: `mov-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    date: new Date().toISOString(),
+    type: 'Ajuste',
+    partId,
+    quantity: Math.abs(delta),
+    origin: 'Ajuste de estoque',
+    responsible: 'Almoxarifado',
+  });
+  void _reason;
+  return true;
+}
+
+export function getLastMovementForPart(partId: string) {
+  return stockMovements.find(m => m.partId === partId);
+}

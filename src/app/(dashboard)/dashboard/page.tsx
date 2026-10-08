@@ -10,8 +10,10 @@ import { db } from "@/lib/mocks";
 import { Truck, Wrench, ClipboardList, Package, AlertTriangle, PackageCheck } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useRoleGuard } from "@/hooks/useRoleGuard";
 
 export default function DashboardPage() {
+  useRoleGuard(["GESTOR", "MANUTENCAO", "ALMOXARIFADO"]);
   const totalVehicles = db.vehicles.length;
   const vehiclesInMaintenance = db.vehicles.filter(v => v.status === "Em manutenção").length;
   const openOrders = db.workOrders.filter(wo => wo.status !== "Finalizada").length;

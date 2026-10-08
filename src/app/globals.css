@@ -1,30 +1,41 @@
 @import "tailwindcss";
 
 :root {
+  /* Brand colors extracted from client identity */
+  --brand-primary: #1E3A8A;        /* deep blue */
+  --brand-primary-hover: #1E40AF;
+  --brand-primary-light: #EFF6FF;
+  --brand-secondary: #F97316;      /* orange accent */
+  --brand-secondary-hover: #EA580C;
+  --brand-accent: #16A34A;         /* green for success */
+
   --background: #F8FAFC;
-  --foreground: #0F172A;
-  --primary: #1D4ED8;
-  --primary-light: #2563EB;
-  --primary-soft: #EFF6FF;
-  --card: #FFFFFF;
-  --border: #E2E8F0;
+  --surface: #FFFFFF;
+  --surface-muted: #F1F5F9;
+
   --text-primary: #0F172A;
   --text-secondary: #64748B;
+
+  --border: #E2E8F0;
+
   --success: #16A34A;
   --warning: #D97706;
   --danger: #DC2626;
 }
 
 @theme inline {
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-primary-hover: var(--brand-primary-hover);
+  --color-brand-primary-light: var(--brand-primary-light);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-brand-secondary-hover: var(--brand-secondary-hover);
+  --color-brand-accent: var(--brand-accent);
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-primary: var(--primary);
-  --color-primary-light: var(--primary-light);
-  --color-primary-soft: var(--primary-soft);
-  --color-card: var(--card);
-  --color-border: var(--border);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
+  --color-border: var(--border);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
@@ -34,6 +45,6 @@
 
 body {
   background: var(--background);
-  color: var(--foreground);
+  color: var(--text-primary);
   font-family: var(--font-sans), system-ui, sans-serif;
 }

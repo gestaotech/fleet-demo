@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
+import Image from "next/image";
+import { useRole } from "@/context/RoleContext";
 import {
   LayoutDashboard,
   Truck,
@@ -16,32 +18,6 @@ import {
   BarChart2,
 } from "lucide-react";
 
-const groups = [
-  {
-    label: "GESTÃO",
-    items: [
-      { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { title: "Frota", href: "/frota", icon: Truck },
-      { title: "Manutenção", href: "/manutencao", icon: Wrench },
-    ],
-  },
-  {
-    label: "OPERAÇÃO",
-    items: [
-      { title: "Almoxarifado", href: "/almoxarifado", icon: Package },
-      { title: "Solicitações", href: "/almoxarifado/solicitacoes", icon: ClipboardList },
-      { title: "Movimentações", href: "/almoxarifado/movimentacoes", icon: ArrowUpDown },
-    ],
-  },
-  {
-    label: "ANÁLISES",
-    items: [
-      { title: "Relatório Manutenção", href: "/relatorios/manutencao", icon: BarChart2 },
-      { title: "Relatório Estoque", href: "/relatorios/estoque", icon: BarChart2 },
-    ],
-  },
-];
-
 function NavLink({ href, title, icon: Icon, isActive }: { href: string; title: string; icon: React.ComponentType<{ className?: string }>; isActive: boolean }) {
   return (
     <Link
@@ -49,11 +25,11 @@ function NavLink({ href, title, icon: Icon, isActive }: { href: string; title: s
       className={cn(
         "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
         isActive
-          ? "bg-primary-soft text-primary"
-          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          ? "bg-[var(--brand-primary-light)] text-[var(--brand-primary)]"
+          : "text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]"
       )}
     >
-      <Icon className={cn("h-4 w-4", isActive && "text-primary")} />
+      <Icon className={cn("h-4 w-4", isActive && "text-[var(--brand-primary)]")} />
       <span>{title}</span>
     </Link>
   );
@@ -76,8 +52,61 @@ function Group({ label, items, pathname }: { label: string; items: { title: stri
   );
 }
 
+function getGroupsForRole(role: string) {
+  switch (role) {
+    case "MANUTENCAO":
+      return [
+        {
+          label: "OPERAÇÃO",
+          items: [
+            { title: "Dashboard", href: "/manutencao", icon: LayoutDashboard },
+            { title: "Frota", href: "/frota", icon: Truck },
+            { title: "Ordens de Serviço", href: "/manutencao", icon: Wrench },
+            { title: "Minhas solicitações", href: "/manutencao/solicitacoes", icon: ClipboardList },
+          ],
+        },
+      ];
+    case "ALMOXARIFADO":
+      return [
+        {
+          label: "ALMOXARIFADO",
+          items: [
+            { title: "Dashboard", href: "/almoxarifado", icon: LayoutDashboard },
+            { title: "Estoque", href: "/almoxarifado", icon: Package },
+            { title: "Solicitações", href: "/almoxarifado/solicitacoes", icon: ClipboardList },
+            { title: "Movimentações", href: "/almoxarifado/movimentacoes", icon: ArrowUpDown },
+          ],
+        },
+      ];
+    case "GESTOR":
+      return [
+        {
+          label: "GESTÃO",
+          items: [
+            { title: "Dashboard", href: "/gestor", icon: LayoutDashboard },
+            { title: "Frota", href: "/frota", icon: Truck },
+            { title: "Manutenção", href: "/manutencao", icon: Wrench },
+            { title: "Almoxarifado", href: "/almoxarifado", icon: Package },
+          ],
+        },
+        {
+          label: "ANÁLISES",
+          items: [
+            { title: "Relatório Manutenção", href: "/relatorios/manutencao", icon: BarChart2 },
+            { title: "Relatório Estoque", href: "/relatorios/estoque", icon: BarChart2 },
+          ],
+        },
+      ];
+    default:
+      return [];
+  }
+}
+
 export function Sidebar() {
   const pathname = usePathname();
+  const { currentRole } = useRole();
+
+  const groups = getGroupsForRole(currentRole || "");
 
   return (
     <>
@@ -106,8 +135,9 @@ export function Sidebar() {
           {/* Brand */}
           <div className="flex items-center gap-2 px-6 py-4 border-b">
             <div className="flex items-center gap-2">
-              <span className="text-xl font-bold text-primary">Fleet Management</span>
-              <span className="text-xs px-2 py-0.5 bg-primary-soft text-primary rounded-full">DEMO</span>
+              <Image src="/logo.jpeg" alt="Logo" width={120} height={40} className="h-8 w-auto object-contain" />
+              <span className="text-xl font-bold text-[var(--brand-primary)]">Tarcísio Araújo Transporte</span>
+              <span className="text-xs px-2 py-0.5 bg-[var(--brand-primary-light)] text-[var(--brand-primary)] rounded-full">DEMO</span>
             </div>
           </div>
 

@@ -14,8 +14,10 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { db } from "@/lib/mocks";
 import { Plus, Search } from "lucide-react";
 import Link from "next/link";
+import { useRoleGuard } from "@/hooks/useRoleGuard";
 
 export default function FrotaPage() {
+  useRoleGuard(["GESTOR", "MANUTENCAO"]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Todos");
   const [newVehicle, setNewVehicle] = useState({ name: "", plate: "", model: "", year: "", km: "" });

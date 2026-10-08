@@ -8,12 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { db, updateRequestStatus, addStockMovement, updatePartStock, addWorkOrderItem, updateWorkOrderStatus } from "@/lib/mocks";
-import { Eye } from "lucide-react";
+import { Eye, XCircle, CheckCircle } from "lucide-react";
 import { useState } from "react";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useRoleGuard } from "@/hooks/useRoleGuard";
 
 export default function SolicitacoesPage() {
+  useRoleGuard(["GESTOR", "ALMOXARIFADO"]);
   const [selectedReq, setSelectedReq] = useState<typeof db.partRequests[0] | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const statusBadge = (s: string) => {
     switch (s) {
@@ -27,9 +32,25 @@ export default function SolicitacoesPage() {
 
   const handleProcess = (req: typeof db.partRequests[0]) => setSelectedReq(req);
 
+  const handleRejectOpen = (req: typeof db.partRequests[0]) => {
+    setSelectedReq(req);
+    setRejectReason("");
+  };
+
+  const handleRejectConfirm = () => {
+    if (!selectedReq || !rejectReason.trim()) return;
+    updateRequestStatus(selectedReq.id, "Recusada");
+    const wo = db.workOrders.find(w => w.id === selectedReq.workOrderId);
+    if (wo) {
+      wo.observations = (wo.observations || "") + `\n[Recusado almoxarifado: ${rejectReason}]`;
+    }
+    alert("Solicitação recusada.");
+    setSelectedReq(null);
+    setRejectReason("");
+  };
+
   const handleConfirm = () => {
     if (!selectedReq) return;
-    // verify stock
     for (const it of selectedReq.items) {
       const part = db.parts.find(p => p.id === it.partId);
       if (!part || part.stock < it.quantity) {
@@ -37,7 +58,6 @@ export default function SolicitacoesPage() {
         return;
       }
     }
-    // deduct stock and create movements
     for (const it of selectedReq.items) {
       updatePartStock(it.partId, -it.quantity);
       addStockMovement({
@@ -49,12 +69,9 @@ export default function SolicitacoesPage() {
         origin: selectedReq.workOrderId,
         responsible: "Almoxarifado",
       });
-      // add to OS
       addWorkOrderItem(selectedReq.workOrderId, { partId: it.partId, quantity: it.quantity, status: "Retirada" });
     }
-    // update request status
     updateRequestStatus(selectedReq.id, "Retirada confirmada");
-    // update OS status if needed
     const wo = db.workOrders.find(w => w.id === selectedReq.workOrderId);
     if (wo && wo.status === "Aguardando peças") updateWorkOrderStatus(wo.id, "Em andamento");
     alert("Retirada confirmada com sucesso.");
@@ -65,7 +82,9 @@ export default function SolicitacoesPage() {
     <DashboardLayout title="Solicitações" breadcrumbs={[{ label: "Almoxarifado", href: "/almoxarifado" }, { label: "Solicitações" }]}>
       <div className="space-y-6">
         <Card>
-          <CardHeader><CardTitle>Solicitações de peças</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Solicitações de peças</CardTitle>
+          </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
@@ -95,7 +114,12 @@ export default function SolicitacoesPage() {
                       <TableCell>{req.items.length}</TableCell>
                       <TableCell>{statusBadge(req.status)}</TableCell>
                       <TableCell className="text-right">
-                        {req.status==="Pendente" && <Button size="sm" onClick={()=>handleProcess(req)}><Eye className="mr-1 h-3 w-3" /> Processar</Button>}
+                        {req.status==="Pendente" && (
+                          <div className="flex items-center gap-2 justify-end">
+                            <Button variant="outline" size="sm" onClick={()=>handleRejectOpen(req)}><XCircle className="mr-1 h-3 w-3" /> Recusar</Button>
+                            <Button size="sm" onClick={()=>handleProcess(req)}><Eye className="mr-1 h-3 w-3" /> Processar</Button>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -105,47 +129,73 @@ export default function SolicitacoesPage() {
           </CardContent>
         </Card>
 
-        {/* Process modal using AlertDialog for simplicity */}
+        {/* Process/Reject Modals */}
         {selectedReq && (
-          <AlertDialog open={true} onOpenChange={open=>{if(!open) setSelectedReq(null)}}>
-            <AlertDialogTrigger asChild><span /></AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Solicitação {selectedReq.id}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  OS: {selectedReq.workOrderId} · Veículo: {db.vehicles.find(v=>v.id===db.workOrders.find(w=>w.id===selectedReq.workOrderId)?.vehicleId)?.name} ({db.vehicles.find(v=>v.id===db.workOrders.find(w=>w.id===selectedReq.workOrderId)?.vehicleId)?.plate}) · Mecânico: {db.mechanics.find(m=>m.id===selectedReq.requesterId)?.name}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Peça</TableHead>
-                    <TableHead className="text-right">Quantidade</TableHead>
-                    <TableHead className="text-right">Estoque atual</TableHead>
-                    <TableHead>Disponibilidade</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedReq.items.map((it, idx) => {
-                    const part = db.parts.find(p => p.id === it.partId);
-                    const enough = part && part.stock >= it.quantity;
-                    return (
-                      <TableRow key={idx}>
-                        <TableCell>{part?.name}</TableCell>
-                        <TableCell className="text-right">{it.quantity}</TableCell>
-                        <TableCell className="text-right">{part?.stock}</TableCell>
-                        <TableCell>{enough ? <Badge variant="success">Disponível</Badge> : <Badge variant="destructive">Estoque insuficiente</Badge>}</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleConfirm}>Confirmar retirada</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <>
+            {/* Process Modal */}
+            <AlertDialog open={true} onOpenChange={open=>{if(!open) setSelectedReq(null)}}>
+              <AlertDialogTrigger asChild><span /></AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Solicitação {selectedReq.id}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    OS: {selectedReq.workOrderId} · Veículo: {db.vehicles.find(v=>v.id===db.workOrders.find(w=>w.id===selectedReq.workOrderId)?.vehicleId)?.name} ({db.vehicles.find(v=>v.id===db.workOrders.find(w=>w.id===selectedReq.workOrderId)?.vehicleId)?.plate}) · Mecânico: {db.mechanics.find(m=>m.id===selectedReq.requesterId)?.name}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Peça</TableHead>
+                      <TableHead className="text-right">Quantidade</TableHead>
+                      <TableHead className="text-right">Estoque atual</TableHead>
+                      <TableHead>Disponibilidade</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedReq.items.map((it, idx) => {
+                      const part = db.parts.find(p => p.id === it.partId);
+                      const enough = part && part.stock >= it.quantity;
+                      return (
+                        <TableRow key={idx}>
+                          <TableCell>{part?.name}</TableCell>
+                          <TableCell className="text-right">{it.quantity}</TableCell>
+                          <TableCell className="text-right">{part?.stock}</TableCell>
+                          <TableCell>{enough ? <Badge variant="success">Disponível</Badge> : <Badge variant="destructive">Estoque insuficiente</Badge>}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleConfirm}><CheckCircle className="mr-1 h-3 w-3" /> Confirmar retirada</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Reject Modal */}
+            <Dialog open={true} onOpenChange={open=>{if(!open){ setSelectedReq(null); setRejectReason(""); }}}>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Recusar solicitação {selectedReq.id}</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <Textarea
+                    placeholder="Justificativa para recusa..."
+                    value={rejectReason}
+                    onChange={e=>setRejectReason(e.target.value)}
+                    className="min-h-[100px]"
+                  />
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={()=>{setSelectedReq(null); setRejectReason("")}}>Cancelar</Button>
+                  <Button variant="destructive" onClick={handleRejectConfirm} disabled={!rejectReason.trim()}>
+                    <XCircle className="mr-1 h-4 w-4" /> Confirmar recusa
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </>
         )}
       </div>
     </DashboardLayout>

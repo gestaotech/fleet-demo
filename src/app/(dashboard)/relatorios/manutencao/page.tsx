@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { db } from "@/lib/mocks";
+import { useRoleGuard } from "@/hooks/useRoleGuard";
 
 export default function RelManutencaoPage() {
+  useRoleGuard(["GESTOR"]);
   const total = db.workOrders.length;
   const abertas = db.workOrders.filter(w=>w.status==="Aberta").length;
   const andamento = db.workOrders.filter(w=>w.status==="Em andamento").length;

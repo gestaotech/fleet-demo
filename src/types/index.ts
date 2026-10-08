@@ -20,6 +20,7 @@ export interface Part {
   code: string;
   name: string;
   category: string;
+  unit: string;
   stock: number;
   minStock: number;
   unitPrice: number;
@@ -37,6 +38,7 @@ export interface WorkOrder {
   mechanicId: string;
   status: 'Aberta' | 'Em andamento' | 'Aguardando peças' | 'Finalizada';
   problem: string;
+  observations?: string;
   services: string[];
   items: WorkOrderItem[];
   createdAt: string; // ISO
@@ -56,9 +58,9 @@ export interface PartRequest {
 export interface StockMovement {
   id: string;
   date: string; // ISO
-  type: 'Entrada' | 'Saída';
+  type: 'Entrada' | 'Saída' | 'Ajuste';
   partId: string;
-  quantity: number; // positive for entry, negative for exit
-  origin: string; // e.g., OS id or 'Compra'
+  quantity: number; // positive for entry, negative for exit, zero for adjustment (use absolute)
+  origin: string; // e.g., OS id or 'Compra' or 'Ajuste'
   responsible: string;
 }
