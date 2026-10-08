@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { db, addStockEntry, adjustStock } from "@/lib/mocks";
+import { db, addStockEntry, adjustStock, getLastMovementForPart } from "@/lib/mocks";
 import { Package, AlertTriangle, TrendingUp, DollarSign, Plus, RotateCcw } from "lucide-react";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 
@@ -157,7 +157,7 @@ export default function AlmoxarifadoPage() {
               </TableHeader>
               <TableBody>
                 {filtered.map(p=>{
-                  const lastMov = db.stockMovements.find(m => m.partId === p.id);
+                  const lastMov = getLastMovementForPart(p.id);
                   return (
                     <TableRow key={p.id}>
                       <TableCell>{p.code}</TableCell>

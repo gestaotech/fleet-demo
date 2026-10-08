@@ -29,7 +29,7 @@ export interface Part {
 export interface WorkOrderItem {
   partId: string;
   quantity: number;
-  status: 'Solicitada' | 'Retirada' | 'Utilizada';
+  status: 'Solicitada' | 'Retirada' | 'Utilizada' | 'Recusada';
 }
 
 export interface WorkOrder {
@@ -60,7 +60,8 @@ export interface StockMovement {
   date: string; // ISO
   type: 'Entrada' | 'Saída' | 'Ajuste';
   partId: string;
-  quantity: number; // positive for entry, negative for exit, zero for adjustment (use absolute)
+  quantity: number; // positive for entry, negative for exit, zero for adjustment
   origin: string; // e.g., OS id or 'Compra' or 'Ajuste'
   responsible: string;
+  observation?: string;
 }

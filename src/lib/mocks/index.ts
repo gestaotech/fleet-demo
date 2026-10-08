@@ -93,9 +93,10 @@ export function finalizeWorkOrder(woId: string) {
 }
 
 // Stock specific mutations
-export function addStockEntry(partId: string, quantity: number, _observation: string) {
+export function addStockEntry(partId: string, quantity: number, observation: string) {
   const part = findPart(partId);
   if (!part) return false;
+  if (quantity <= 0) return false;
   part.stock += quantity;
   addStockMovement({
     id: `mov-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -105,14 +106,16 @@ export function addStockEntry(partId: string, quantity: number, _observation: st
     quantity,
     origin: 'Entrada manual',
     responsible: 'Almoxarifado',
+    observation,
   });
-  void _observation;
   return true;
 }
 
-export function adjustStock(partId: string, newQuantity: number, _reason: string) {
+export function adjustStock(partId: string, newQuantity: number, reason: string) {
   const part = findPart(partId);
   if (!part) return false;
+  if (!reason || !reason.trim()) return false;
+  if (newQuantity < 0) return false;
   const delta = newQuantity - part.stock;
   part.stock = newQuantity;
   addStockMovement({
@@ -120,14 +123,64 @@ export function adjustStock(partId: string, newQuantity: number, _reason: string
     date: new Date().toISOString(),
     type: 'Ajuste',
     partId,
-    quantity: Math.abs(delta),
+    quantity: delta,
     origin: 'Ajuste de estoque',
     responsible: 'Almoxarifado',
+    observation: reason,
   });
-  void _reason;
   return true;
 }
 
+export function confirmWithdrawal(requestId: string): { success: boolean; message: string } {
+  const req = findRequest(requestId);
+  if (!req) return { success: false, message: 'Solicitação não encontrada.' };
+  if (req.status !== 'Pendente') return { success: false, message: 'Solicitação já processada ou recusada.' };
+  // Validate stock for all items
+  for (const it of req.items) {
+    const part = findPart(it.partId);
+    if (!part || part.stock < it.quantity) {
+      return { success: false, message: `Estoque insuficiente para ${part?.name || it.partId}.` };
+    }
+  }
+  // All good: perform withdrawal
+  for (const it of req.items) {
+    updatePartStock(it.partId, -it.quantity);
+    addStockMovement({
+      id: `mov-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      date: new Date().toISOString(),
+      type: 'Saída',
+      partId: it.partId,
+      quantity: -it.quantity,
+      origin: req.workOrderId,
+      responsible: 'Almoxarifado',
+      observation: `Retirada da solicitação ${req.id}`,
+    });
+    // Update OS item: find existing item with same partId and status 'Solicitada'
+    const wo = findWorkOrder(req.workOrderId);
+    if (wo) {
+      const existingItem = wo.items.find(i => i.partId === it.partId && i.status === 'Solicitada');
+      if (existingItem) {
+        existingItem.status = 'Retirada';
+      } else {
+        addWorkOrderItem(req.workOrderId, { partId: it.partId, quantity: it.quantity, status: 'Retirada' });
+      }
+    }
+  }
+  updateRequestStatus(req.id, 'Retirada confirmada');
+  // Update OS status if needed
+  const wo = findWorkOrder(req.workOrderId);
+  if (wo && wo.status === 'Aguardando peças') {
+    const otherPending = db.partRequests.some(r => r.workOrderId === req.workOrderId && r.id !== req.id && r.status === 'Pendente');
+    if (!otherPending) {
+      updateWorkOrderStatus(req.workOrderId, 'Em andamento');
+    }
+  }
+  return { success: true, message: 'Retirada confirmada com sucesso.' };
+}
+
 export function getLastMovementForPart(partId: string) {
-  return stockMovements.find(m => m.partId === partId);
+  // Return the most recent movement (by date) for the part
+  const movements = stockMovements.filter(m => m.partId === partId);
+  if (!movements.length) return undefined;
+  return movements.reduce((latest, m) => new Date(m.date) > new Date(latest.date) ? m : latest);
 }

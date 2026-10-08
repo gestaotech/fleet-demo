@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { db } from "@/lib/mocks";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
-// import icons if needed
 
 export default function MovimentacoesPage() {
   useRoleGuard(["GESTOR", "ALMOXARIFADO"]);
@@ -19,23 +18,25 @@ export default function MovimentacoesPage() {
   const [typeFilter, setTypeFilter] = useState("Todos");
   const types = ["Todos", "Entrada", "Saída", "Ajuste"];
 
-  const movements = [...db.stockMovements]
+  // Compute balance per part in chronological order (oldest first)
+  const sortedMovements = [...db.stockMovements].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const balanceByPart: Record<string, number> = {};
+  const movementsWithBalance = sortedMovements.map(m => {
+    const current = balanceByPart[m.partId] ?? 0;
+    const newBalance = current + m.quantity;
+    balanceByPart[m.partId] = newBalance;
+    return { ...m, balance: newBalance };
+  });
+
+  // Apply filters for display (but balance already computed)
+  const filtered = movementsWithBalance
     .filter(m => {
       const part = db.parts.find(p => p.id === m.partId);
       const matchesSearch = part?.name.toLowerCase().includes(search.toLowerCase()) || part?.code.toLowerCase().includes(search.toLowerCase());
       const matchesType = typeFilter === "Todos" || m.type === typeFilter;
       return matchesSearch && matchesType;
     })
-    .sort((a,b)=> new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  // Calculate running balance per part
-  const balanceByPart: Record<string, number> = {};
-  const movementsWithBalance = movements.map(m => {
-    const current = balanceByPart[m.partId] ?? 0;
-    const newBalance = current + m.quantity;
-    balanceByPart[m.partId] = newBalance;
-    return { ...m, balance: newBalance };
-  }).reverse(); // show oldest first for balance calculation
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // display newest first
 
   const typeBadge = (t: string) => {
     switch (t) {
@@ -70,10 +71,11 @@ export default function MovimentacoesPage() {
                 <TableHead className="text-right">Saldo</TableHead>
                 <TableHead>Origem</TableHead>
                 <TableHead>Responsável</TableHead>
+                <TableHead>Observação</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {movementsWithBalance.map(m => {
+              {filtered.map(m => {
                 const part = db.parts.find(p => p.id === m.partId);
                 return (
                   <TableRow key={m.id}>
@@ -84,6 +86,7 @@ export default function MovimentacoesPage() {
                     <TableCell className="text-right font-mono">{m.balance}</TableCell>
                     <TableCell>{m.origin}</TableCell>
                     <TableCell>{m.responsible}</TableCell>
+                    <TableCell>{m.observation ?? "—"}</TableCell>
                   </TableRow>
                 );
               })}
