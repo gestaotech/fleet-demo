@@ -30,6 +30,7 @@ export interface WorkOrderItem {
   partId: string;
   quantity: number;
   status: 'Solicitada' | 'Retirada' | 'Utilizada' | 'Recusada';
+  requestId?: string;
 }
 
 export interface WorkOrder {

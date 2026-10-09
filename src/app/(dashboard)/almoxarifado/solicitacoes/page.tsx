@@ -7,19 +7,24 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { db, updateRequestStatus, confirmWithdrawal } from "@/lib/mocks";
+import { db, confirmWithdrawal, rejectRequest, groupRequestItems } from "@/lib/mocks";
 import { Eye, XCircle, CheckCircle } from "lucide-react";
 import { useState } from "react";
-import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { toast } from "sonner";
+
+type RequestItem = typeof db.partRequests[0];
 
 export default function SolicitacoesPage() {
   useRoleGuard(["GESTOR", "ALMOXARIFADO"]);
-  const [selectedReq, setSelectedReq] = useState<typeof db.partRequests[0] | null>(null);
+  const [selectedReq, setSelectedReq] = useState<RequestItem | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [dialogMode, setDialogMode] = useState<"process" | "reject" | null>(null);
+
+  const canProcess = (status: string) => status === "Pendente" || status === "Separada";
 
   const statusBadge = (s: string) => {
     switch (s) {
@@ -31,30 +36,20 @@ export default function SolicitacoesPage() {
     }
   };
 
-  const handleProcess = (req: typeof db.partRequests[0]) => {
-    if (req.status !== "Pendente") return;
+  const openProcess = (req: RequestItem) => {
+    if (!canProcess(req.status)) return;
     setSelectedReq(req);
     setDialogMode("process");
   };
 
-  const handleRejectOpen = (req: typeof db.partRequests[0]) => {
-    if (req.status !== "Pendente") return;
+  const openReject = (req: RequestItem) => {
+    if (!canProcess(req.status)) return;
     setSelectedReq(req);
     setRejectReason("");
     setDialogMode("reject");
   };
 
-  const handleRejectConfirm = () => {
-    if (!selectedReq || !rejectReason.trim()) return;
-    updateRequestStatus(selectedReq.id, "Recusada");
-    const wo = db.workOrders.find(w => w.id === selectedReq.workOrderId);
-    if (wo) {
-      wo.observations = (wo.observations || "") + `\n[Recusado almoxarifado: ${rejectReason}]`;
-      // Update OS item status to Recusada if exists
-      const item = wo.items.find(i => selectedReq.items.some(it => it.partId === i.partId && i.status === "Solicitada"));
-      if (item) item.status = "Recusada";
-    }
-    alert("Solicitação recusada.");
+  const closeDialog = () => {
     setSelectedReq(null);
     setRejectReason("");
     setDialogMode(null);
@@ -63,18 +58,33 @@ export default function SolicitacoesPage() {
   const handleConfirm = () => {
     if (!selectedReq) return;
     const result = confirmWithdrawal(selectedReq.id);
-    alert(result.message);
     if (result.success) {
-      setSelectedReq(null);
-      setDialogMode(null);
+      toast.success(result.message);
+      closeDialog();
+    } else {
+      toast.error(result.message);
     }
   };
 
-  const handleClose = () => {
-    setSelectedReq(null);
-    setRejectReason("");
-    setDialogMode(null);
+  const handleRejectConfirm = () => {
+    if (!selectedReq) return;
+    const result = rejectRequest(selectedReq.id, rejectReason);
+    if (result.success) {
+      toast.success(result.message);
+      closeDialog();
+    } else {
+      toast.error(result.message);
+    }
   };
+
+  // Itens agrupados por peça (mesma peça pode aparecer mais de uma vez).
+  const groupedItems = selectedReq
+    ? Array.from(groupRequestItems(selectedReq.items).entries())
+    : [];
+  const hasShortage = groupedItems.some(([partId, qty]) => {
+    const part = db.parts.find(p => p.id === partId);
+    return !part || part.stock < qty;
+  });
 
   return (
     <DashboardLayout title="Solicitações" breadcrumbs={[{ label: "Almoxarifado", href: "/almoxarifado" }, { label: "Solicitações" }]}>
@@ -103,7 +113,7 @@ export default function SolicitacoesPage() {
                   const vehicle = wo ? db.vehicles.find(v => v.id === wo.vehicleId) : null;
                   const requester = db.mechanics.find(m => m.id === req.requesterId);
                   return (
-                    <TableRow key={req.id} className={req.status==="Pendente"?"bg-yellow-50":""}>
+                    <TableRow key={req.id} className={canProcess(req.status) ? "bg-yellow-50" : ""}>
                       <TableCell className="font-mono">{req.id}</TableCell>
                       <TableCell>{wo?.id}</TableCell>
                       <TableCell>{vehicle?.name} ({vehicle?.plate})</TableCell>
@@ -112,10 +122,10 @@ export default function SolicitacoesPage() {
                       <TableCell>{req.items.length}</TableCell>
                       <TableCell>{statusBadge(req.status)}</TableCell>
                       <TableCell className="text-right">
-                        {req.status==="Pendente" && (
+                        {canProcess(req.status) && (
                           <div className="flex items-center gap-2 justify-end">
-                            <Button variant="outline" size="sm" onClick={()=>{setSelectedReq(req); setDialogMode("reject");}}><XCircle className="mr-1 h-3 w-3" /> Recusar</Button>
-                            <Button size="sm" onClick={()=>{setSelectedReq(req); setDialogMode("process");}}><Eye className="mr-1 h-3 w-3" /> Processar</Button>
+                            <Button variant="outline" size="sm" onClick={()=>openReject(req)}><XCircle className="mr-1 h-3 w-3" /> Recusar</Button>
+                            <Button size="sm" onClick={()=>openProcess(req)}><Eye className="mr-1 h-3 w-3" /> Processar</Button>
                           </div>
                         )}
                       </TableCell>
@@ -129,8 +139,7 @@ export default function SolicitacoesPage() {
 
         {/* Process Modal */}
         {selectedReq && dialogMode === "process" && (
-          <AlertDialog open={true} onOpenChange={open=>{if(!open) setDialogMode(null);}}>
-            <AlertDialogTrigger asChild><span /></AlertDialogTrigger>
+          <AlertDialog open={true} onOpenChange={open=>{ if(!open) closeDialog(); }}>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Solicitação {selectedReq.id}</AlertDialogTitle>
@@ -148,13 +157,13 @@ export default function SolicitacoesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {selectedReq.items.map((it, idx) => {
-                    const part = db.parts.find(p => p.id === it.partId);
-                    const enough = part && part.stock >= it.quantity;
+                  {groupedItems.map(([partId, qty]) => {
+                    const part = db.parts.find(p => p.id === partId);
+                    const enough = part && part.stock >= qty;
                     return (
-                      <TableRow key={idx}>
-                        <TableCell>{part?.name}</TableCell>
-                        <TableCell className="text-right">{it.quantity}</TableCell>
+                      <TableRow key={partId}>
+                        <TableCell>{part?.name ?? partId}</TableCell>
+                        <TableCell className="text-right">{qty}</TableCell>
                         <TableCell className="text-right">{part?.stock}</TableCell>
                         <TableCell>{enough ? <Badge variant="success">Disponível</Badge> : <Badge variant="destructive">Estoque insuficiente</Badge>}</TableCell>
                       </TableRow>
@@ -162,9 +171,14 @@ export default function SolicitacoesPage() {
                   })}
                 </TableBody>
               </Table>
+              {hasShortage && (
+                <p className="text-sm text-danger">Há itens sem estoque suficiente. A retirada será recusada.</p>
+              )}
               <AlertDialogFooter>
-                <AlertDialogCancel onClick={()=>setDialogMode(null)}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleConfirm}><CheckCircle className="mr-1 h-3 w-3" /> Confirmar retirada</AlertDialogAction>
+                <AlertDialogCancel onClick={closeDialog}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={(e)=>{ if(hasShortage){ e.preventDefault(); toast.error("Estoque insuficiente para concluir a retirada."); } else { handleConfirm(); } }}>
+                  <CheckCircle className="mr-1 h-3 w-3" /> Confirmar retirada
+                </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -172,7 +186,7 @@ export default function SolicitacoesPage() {
 
         {/* Reject Modal */}
         {selectedReq && dialogMode === "reject" && (
-          <Dialog open={true} onOpenChange={open=>{if(!open){ setSelectedReq(null); setRejectReason(""); setDialogMode(null); }}}>
+          <Dialog open={true} onOpenChange={open=>{ if(!open) closeDialog(); }}>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
                 <DialogTitle>Recusar solicitação {selectedReq.id}</DialogTitle>
@@ -186,7 +200,7 @@ export default function SolicitacoesPage() {
                 />
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={()=>{setDialogMode(null);}}>Cancelar</Button>
+                <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
                 <Button variant="destructive" onClick={handleRejectConfirm} disabled={!rejectReason.trim()}>
                   <XCircle className="mr-1 h-4 w-4" /> Confirmar recusa
                 </Button>

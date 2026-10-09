@@ -45,7 +45,14 @@ export default function OSDetailPage() {
   };
 
   const handleRequest = () => {
-    if (!partId || qty <= 0) return;
+    if (wo.status === "Finalizada") {
+      toast.error("Não é possível solicitar peças para uma OS finalizada.");
+      return;
+    }
+    if (!partId || qty <= 0) {
+      toast.error("Selecione a peça e informe uma quantidade válida.");
+      return;
+    }
     const reqId = `REQ-${String(db.partRequests.length + 1).padStart(5, "0")}`;
     db.partRequests.push({
       id: reqId,
@@ -56,7 +63,7 @@ export default function OSDetailPage() {
       status: "Pendente",
       createdAt: new Date().toISOString(),
     });
-    addWorkOrderItem(wo.id, { partId, quantity: qty, status: "Solicitada" });
+    addWorkOrderItem(wo.id, { partId, quantity: qty, status: "Solicitada", requestId: reqId });
     if (wo.status === "Aberta") updateWorkOrderStatus(wo.id, "Aguardando peças");
     toast.success("Solicitação enviada ao almoxarifado.");
     setPartId(""); setQty(1); setObs("");

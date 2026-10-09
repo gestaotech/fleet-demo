@@ -14,6 +14,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { db, addStockEntry, adjustStock, getLastMovementForPart } from "@/lib/mocks";
 import { Package, AlertTriangle, TrendingUp, DollarSign, Plus, RotateCcw } from "lucide-react";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { toast } from "sonner";
 
 export default function AlmoxarifadoPage() {
   useRoleGuard(["GESTOR", "ALMOXARIFADO"]);
@@ -53,23 +54,40 @@ export default function AlmoxarifadoPage() {
   const [entryPart, setEntryPart] = useState("");
   const [entryQty, setEntryQty] = useState(1);
   const [entryObs, setEntryObs] = useState("");
+  const [entryError, setEntryError] = useState("");
   const [adjPart, setAdjPart] = useState("");
   const [adjQty, setAdjQty] = useState(0);
   const [adjReason, setAdjReason] = useState("");
+  const [adjError, setAdjError] = useState("");
+
+  const closeEntry = () => {
+    setEntryOpen(false);
+    setEntryPart(""); setEntryQty(1); setEntryObs(""); setEntryError("");
+  };
+  const closeAdjust = () => {
+    setAdjOpen(false);
+    setAdjPart(""); setAdjQty(0); setAdjReason(""); setAdjError("");
+  };
 
   const handleEntry = () => {
-    if (!entryPart || entryQty<=0) return;
-    addStockEntry(entryPart, entryQty, entryObs);
-    setEntryOpen(false);
-    setEntryPart(""); setEntryQty(1); setEntryObs("");
-    alert("Entrada de estoque registrada com sucesso.");
+    const result = addStockEntry(entryPart, entryQty, entryObs);
+    if (result.success) {
+      toast.success(result.message);
+      closeEntry();
+    } else {
+      setEntryError(result.message);
+      toast.error(result.message);
+    }
   };
   const handleAdjust = () => {
-    if (!adjPart || adjQty<0) return;
-    adjustStock(adjPart, adjQty, adjReason);
-    setAdjOpen(false);
-    setAdjPart(""); setAdjQty(0); setAdjReason("");
-    alert("Estoque ajustado com sucesso.");
+    const result = adjustStock(adjPart, adjQty, adjReason);
+    if (result.success) {
+      toast.success(result.message);
+      closeAdjust();
+    } else {
+      setAdjError(result.message);
+      toast.error(result.message);
+    }
   };
 
   return (
@@ -177,11 +195,11 @@ export default function AlmoxarifadoPage() {
         </Card>
 
         {/* Entrada Modal */}
-        <Dialog open={entryOpen} onOpenChange={setEntryOpen}>
+        <Dialog open={entryOpen} onOpenChange={(open)=>{ if(!open) closeEntry(); }}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader><DialogTitle>Entrada de estoque</DialogTitle></DialogHeader>
             <div className="grid gap-4 py-4">
-              <Select value={entryPart} onValueChange={setEntryPart}>
+              <Select value={entryPart} onValueChange={(v)=>{setEntryPart(v); setEntryError("");}}>
                 <SelectTrigger><SelectValue placeholder="Peça" /></SelectTrigger>
                 <SelectContent>
                   {db.parts.map(p => <SelectItem key={p.id} value={p.id}>{p.code} - {p.name} (Estoque: {p.stock})</SelectItem>)}
@@ -190,27 +208,28 @@ export default function AlmoxarifadoPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium">Quantidade</label>
-                  <Input type="number" min="1" value={entryQty} onChange={e=>setEntryQty(parseInt(e.target.value)||1)} />
+                  <Input type="number" min="1" value={entryQty} onChange={e=>{setEntryQty(parseInt(e.target.value)||0); setEntryError("");}} />
                 </div>
                 <div>
                   <label className="text-sm font-medium">Observação</label>
                   <Input value={entryObs} onChange={e=>setEntryObs(e.target.value)} placeholder="Opcional" />
                 </div>
               </div>
+              {entryError && <p className="text-sm text-danger">{entryError}</p>}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={()=>{setEntryOpen(false);setEntryPart("");setEntryQty(1);setEntryObs("")}}>Cancelar</Button>
-              <Button onClick={handleEntry}>Confirmar entrada</Button>
+              <Button variant="outline" onClick={closeEntry}>Cancelar</Button>
+              <Button onClick={handleEntry} disabled={!entryPart || entryQty<=0}>Confirmar entrada</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
         {/* Ajuste Modal */}
-        <Dialog open={adjOpen} onOpenChange={setAdjOpen}>
+        <Dialog open={adjOpen} onOpenChange={(open)=>{ if(!open) closeAdjust(); }}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader><DialogTitle>Ajustar estoque</DialogTitle></DialogHeader>
             <div className="grid gap-4 py-4">
-              <Select value={adjPart} onValueChange={setAdjPart}>
+              <Select value={adjPart} onValueChange={(v)=>{setAdjPart(v); setAdjError("");}}>
                 <SelectTrigger><SelectValue placeholder="Peça" /></SelectTrigger>
                 <SelectContent>
                   {db.parts.map(p => <SelectItem key={p.id} value={p.id}>{p.code} - {p.name} (Estoque: {p.stock})</SelectItem>)}
@@ -219,17 +238,18 @@ export default function AlmoxarifadoPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium">Nova quantidade</label>
-                  <Input type="number" min="0" value={adjQty} onChange={e=>setAdjQty(parseInt(e.target.value)||0)} />
+                  <Input type="number" min="0" value={adjQty} onChange={e=>{setAdjQty(parseInt(e.target.value)||0); setAdjError("");}} />
                 </div>
                 <div>
                   <label className="text-sm font-medium">Motivo</label>
-                  <Input value={adjReason} onChange={e=>setAdjReason(e.target.value)} placeholder="Motivo do ajuste" />
+                  <Input value={adjReason} onChange={e=>{setAdjReason(e.target.value); setAdjError("");}} placeholder="Motivo do ajuste" />
                 </div>
               </div>
+              {adjError && <p className="text-sm text-danger">{adjError}</p>}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={()=>{setAdjOpen(false);setAdjPart("");setAdjQty(0);setAdjReason("")}}>Cancelar</Button>
-              <Button onClick={handleAdjust}>Confirmar ajuste</Button>
+              <Button variant="outline" onClick={closeAdjust}>Cancelar</Button>
+              <Button onClick={handleAdjust} disabled={!adjPart || adjQty<0 || !adjReason.trim()}>Confirmar ajuste</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

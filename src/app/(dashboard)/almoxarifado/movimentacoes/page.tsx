@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { db } from "@/lib/mocks";
+import { db, getMovementsWithBalance } from "@/lib/mocks";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 
 export default function MovimentacoesPage() {
@@ -18,17 +18,11 @@ export default function MovimentacoesPage() {
   const [typeFilter, setTypeFilter] = useState("Todos");
   const types = ["Todos", "Entrada", "Saída", "Ajuste"];
 
-  // Compute balance per part in chronological order (oldest first)
-  const sortedMovements = [...db.stockMovements].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const balanceByPart: Record<string, number> = {};
-  const movementsWithBalance = sortedMovements.map(m => {
-    const current = balanceByPart[m.partId] ?? 0;
-    const newBalance = current + m.quantity;
-    balanceByPart[m.partId] = newBalance;
-    return { ...m, balance: newBalance };
-  });
+  // Saldo calculado cronologicamente por peça (mais antigo -> mais novo).
+  // O saldo fica preso a cada movimentação, então filtros não o alteram.
+  const movementsWithBalance = getMovementsWithBalance();
 
-  // Apply filters for display (but balance already computed)
+  // Aplica filtros apenas para exibição e inverte para mostrar o mais recente primeiro.
   const filtered = movementsWithBalance
     .filter(m => {
       const part = db.parts.find(p => p.id === m.partId);
@@ -36,7 +30,7 @@ export default function MovimentacoesPage() {
       const matchesType = typeFilter === "Todos" || m.type === typeFilter;
       return matchesSearch && matchesType;
     })
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // display newest first
+    .reverse();
 
   const typeBadge = (t: string) => {
     switch (t) {

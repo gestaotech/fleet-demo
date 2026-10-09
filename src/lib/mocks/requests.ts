@@ -11,7 +11,7 @@ export const partRequests: PartRequest[] = [
       { partId: 'p2', quantity: 2 },
       { partId: 'p3', quantity: 2 },
     ],
-    status: 'Pendente',
+    status: 'Retirada confirmada',
     createdAt: '2026-10-02T10:15:00Z',
   },
   {
