@@ -2,6 +2,26 @@ import { StockMovement } from '@/types';
 
 export const stockMovements: StockMovement[] = [
   {
+    id: 'mov-init-p10',
+    date: '2026-09-01T00:00:00Z',
+    type: 'Entrada',
+    partId: 'p10',
+    quantity: 8,
+    origin: 'Saldo inicial',
+    responsible: 'Sistema',
+    observation: 'Saldo inicial para consistência de histórico',
+  },
+  {
+    id: 'mov-init-p17',
+    date: '2026-09-01T00:00:00Z',
+    type: 'Entrada',
+    partId: 'p17',
+    quantity: 3,
+    origin: 'Saldo inicial',
+    responsible: 'Sistema',
+    observation: 'Saldo inicial para consistência de histórico',
+  },
+  {
     id: 'mov-1',
     date: '2026-10-02T10:30:00Z',
     type: 'Saída',
