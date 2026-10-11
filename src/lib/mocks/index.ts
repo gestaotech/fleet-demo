@@ -117,6 +117,45 @@ export function createWorkOrder(data: { vehicleId: string; mechanicId: string; p
   workOrders.unshift(wo);
   return wo;
 }
+// Creates a part request from maintenance and links it to the work order items.
+export function createPartRequest(data: {
+  workOrderId: string;
+  items: { partId: string; quantity: number }[];
+}): OperationResult {
+  const wo = findWorkOrder(data.workOrderId);
+  if (!wo) return { success: false, message: 'Ordem de Serviço não encontrada.' };
+  if (isWorkOrderLocked(wo.status)) {
+    return { success: false, message: 'Não é possível solicitar peças para uma OS finalizada.' };
+  }
+
+  const items = data.items.filter(i => i.partId && i.quantity > 0);
+  if (items.length === 0) {
+    return { success: false, message: 'Selecione a peça e informe uma quantidade válida.' };
+  }
+
+  const id = `REQ-${String(partRequests.length + 1).padStart(5, '0')}`;
+  partRequests.push({
+    id,
+    workOrderId: wo.id,
+    vehicleId: wo.vehicleId,
+    requesterId: wo.mechanicId,
+    items: items.map(i => ({ ...i })),
+    status: 'Pendente',
+    createdAt: new Date().toISOString(),
+  });
+  for (const item of items) {
+    addWorkOrderItem(wo.id, {
+      partId: item.partId,
+      quantity: item.quantity,
+      status: 'Solicitada',
+      requestId: id,
+    });
+  }
+  if (wo.status === 'Aberta') updateWorkOrderStatus(wo.id, 'Aguardando peças');
+
+  return { success: true, message: 'Solicitação enviada ao almoxarifado.' };
+}
+
 export function addServiceToWorkOrder(woId: string, service: string) {
   const wo = findWorkOrder(woId);
   if (wo) {
@@ -124,12 +163,35 @@ export function addServiceToWorkOrder(woId: string, service: string) {
     wo.updatedAt = new Date().toISOString();
   }
 }
-export function finalizeWorkOrder(woId: string) {
+// A work order can only be finalized when no part request is still open and no
+// item is still waiting for the warehouse ("Solicitada").
+export function canFinalizeWorkOrder(woId: string): OperationResult {
   const wo = findWorkOrder(woId);
-  if (wo) {
-    wo.status = 'Finalizada';
-    wo.updatedAt = new Date().toISOString();
+  if (!wo) return { success: false, message: 'Ordem de Serviço não encontrada.' };
+  if (wo.status === 'Finalizada') return { success: false, message: 'Ordem de Serviço já finalizada.' };
+
+  const hasOpenRequest = partRequests.some(
+    r => r.workOrderId === woId && isRequestOpen(r.status)
+  );
+  const hasPendingItem = wo.items.some(i => i.status === 'Solicitada');
+
+  if (hasOpenRequest || hasPendingItem) {
+    return {
+      success: false,
+      message: 'Existem peças aguardando atendimento do almoxarifado.',
+    };
   }
+  return { success: true, message: 'Ordem de Serviço pronta para finalizar.' };
+}
+
+export function finalizeWorkOrder(woId: string): OperationResult {
+  const check = canFinalizeWorkOrder(woId);
+  if (!check.success) return check;
+
+  const wo = findWorkOrder(woId)!;
+  wo.status = 'Finalizada';
+  wo.updatedAt = new Date().toISOString();
+  return { success: true, message: 'Ordem de Serviço finalizada com sucesso.' };
 }
 
 // Stock specific mutations

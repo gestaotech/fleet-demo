@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Wrench, Package, LayoutDashboard, User, ArrowRight } from "lucide-react";
+import { Wrench, Package, LayoutDashboard, ArrowRight } from "lucide-react";
 import { useRole } from "@/context/RoleContext";
+import type { Role } from "@/lib/permissions";
 
 const profiles = [
   {
@@ -27,19 +28,12 @@ const profiles = [
     icon: LayoutDashboard,
     href: "/gestor",
   },
-  {
-    key: "ACESSO" as const,
-    title: "Acesso",
-    description: "Acesso inicial ao sistema e seleção do ambiente operacional.",
-    icon: User,
-    href: "/acesso",
-  },
 ];
 
 export default function AcessoPage() {
   const { setRole } = useRole();
 
-  const handleSelect = (role: typeof profiles[0]["key"]) => {
+  const handleSelect = (role: Role) => {
     setRole(role);
     // navigation will happen via Link
   };
@@ -64,11 +58,16 @@ export default function AcessoPage() {
               Acesso ao sistema
             </p>
             <p className="text-lg md:text-xl text-text-secondary max-w-2xl mx-auto">
-              Selecione o ambiente que deseja acessar.
+              Escolha o perfil de demonstração para acessar. Cada perfil enxerga
+              apenas as áreas e ações da sua função.
+            </p>
+            <p className="text-sm text-text-secondary max-w-2xl mx-auto">
+              Simulação de acesso — não há autenticação real nem senha. Os dados
+              são de exemplo e ficam apenas no navegador.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
             {profiles.map((p) => {
               const Icon = p.icon;
               return (

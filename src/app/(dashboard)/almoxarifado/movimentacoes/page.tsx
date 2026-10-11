@@ -10,10 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { db, getMovementsWithBalance } from "@/lib/mocks";
-import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { ROUTE_ROLES } from "@/lib/permissions";
 
 export default function MovimentacoesPage() {
-  useRoleGuard(["GESTOR", "ALMOXARIFADO"]);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("Todos");
   const types = ["Todos", "Entrada", "Saída", "Ajuste"];
@@ -42,7 +41,7 @@ export default function MovimentacoesPage() {
   };
 
   return (
-    <DashboardLayout title="Movimentações" breadcrumbs={[{ label: "Almoxarifado", href: "/almoxarifado" }, { label: "Movimentações" }]}>
+    <DashboardLayout title="Movimentações" breadcrumbs={[{ label: "Almoxarifado", href: "/almoxarifado" }, { label: "Movimentações" }]} allow={ROUTE_ROLES.almoxarifado}>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Histórico de movimentações</CardTitle>

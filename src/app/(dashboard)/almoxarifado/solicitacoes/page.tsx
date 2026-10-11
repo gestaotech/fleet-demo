@@ -13,13 +13,15 @@ import { useState } from "react";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { useRole } from "@/context/RoleContext";
+import { can, ROUTE_ROLES } from "@/lib/permissions";
 import { toast } from "sonner";
 
 type RequestItem = typeof db.partRequests[0];
 
 export default function SolicitacoesPage() {
-  useRoleGuard(["GESTOR", "ALMOXARIFADO"]);
+  const { currentRole } = useRole();
+  const canProcessRequests = can(currentRole, "request:process");
   const [selectedReq, setSelectedReq] = useState<RequestItem | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [dialogMode, setDialogMode] = useState<"process" | "reject" | null>(null);
@@ -37,13 +39,13 @@ export default function SolicitacoesPage() {
   };
 
   const openProcess = (req: RequestItem) => {
-    if (!canProcess(req.status)) return;
+    if (!canProcessRequests || !canProcess(req.status)) return;
     setSelectedReq(req);
     setDialogMode("process");
   };
 
   const openReject = (req: RequestItem) => {
-    if (!canProcess(req.status)) return;
+    if (!canProcessRequests || !canProcess(req.status)) return;
     setSelectedReq(req);
     setRejectReason("");
     setDialogMode("reject");
@@ -57,6 +59,10 @@ export default function SolicitacoesPage() {
 
   const handleConfirm = () => {
     if (!selectedReq) return;
+    if (!canProcessRequests) {
+      toast.error("Seu perfil não permite processar solicitações.");
+      return;
+    }
     const result = confirmWithdrawal(selectedReq.id);
     if (result.success) {
       toast.success(result.message);
@@ -68,6 +74,10 @@ export default function SolicitacoesPage() {
 
   const handleRejectConfirm = () => {
     if (!selectedReq) return;
+    if (!canProcessRequests) {
+      toast.error("Seu perfil não permite recusar solicitações.");
+      return;
+    }
     const result = rejectRequest(selectedReq.id, rejectReason);
     if (result.success) {
       toast.success(result.message);
@@ -87,7 +97,7 @@ export default function SolicitacoesPage() {
   });
 
   return (
-    <DashboardLayout title="Solicitações" breadcrumbs={[{ label: "Almoxarifado", href: "/almoxarifado" }, { label: "Solicitações" }]}>
+    <DashboardLayout title="Solicitações" breadcrumbs={[{ label: "Almoxarifado", href: "/almoxarifado" }, { label: "Solicitações" }]} allow={ROUTE_ROLES.almoxarifado}>
       <div className="space-y-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -122,7 +132,7 @@ export default function SolicitacoesPage() {
                       <TableCell>{req.items.length}</TableCell>
                       <TableCell>{statusBadge(req.status)}</TableCell>
                       <TableCell className="text-right">
-                        {canProcess(req.status) && (
+                        {canProcessRequests && canProcess(req.status) && (
                           <div className="flex items-center gap-2 justify-end">
                             <Button variant="outline" size="sm" onClick={()=>openReject(req)}><XCircle className="mr-1 h-3 w-3" /> Recusar</Button>
                             <Button size="sm" onClick={()=>openProcess(req)}><Eye className="mr-1 h-3 w-3" /> Processar</Button>

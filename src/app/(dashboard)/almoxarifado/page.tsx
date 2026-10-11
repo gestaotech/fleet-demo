@@ -13,11 +13,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { db, addStockEntry, adjustStock, getLastMovementForPart } from "@/lib/mocks";
 import { Package, AlertTriangle, TrendingUp, DollarSign, Plus, RotateCcw } from "lucide-react";
-import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { useRole } from "@/context/RoleContext";
+import { can, ROUTE_ROLES } from "@/lib/permissions";
 import { toast } from "sonner";
 
 export default function AlmoxarifadoPage() {
-  useRoleGuard(["GESTOR", "ALMOXARIFADO"]);
+  const { currentRole } = useRole();
+  const canEnterStock = can(currentRole, "stock:entry");
+  const canAdjustStock = can(currentRole, "stock:adjust");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("Todas");
   const [statusFilter, setStatusFilter] = useState("Todas");
@@ -70,6 +73,10 @@ export default function AlmoxarifadoPage() {
   };
 
   const handleEntry = () => {
+    if (!canEnterStock) {
+      toast.error("Seu perfil não permite registrar entradas de estoque.");
+      return;
+    }
     const result = addStockEntry(entryPart, entryQty, entryObs);
     if (result.success) {
       toast.success(result.message);
@@ -80,6 +87,10 @@ export default function AlmoxarifadoPage() {
     }
   };
   const handleAdjust = () => {
+    if (!canAdjustStock) {
+      toast.error("Seu perfil não permite ajustar o estoque.");
+      return;
+    }
     const result = adjustStock(adjPart, adjQty, adjReason);
     if (result.success) {
       toast.success(result.message);
@@ -91,7 +102,7 @@ export default function AlmoxarifadoPage() {
   };
 
   return (
-    <DashboardLayout title="Almoxarifado" breadcrumbs={[{ label: "Almoxarifado" }]}>
+    <DashboardLayout title="Almoxarifado" breadcrumbs={[{ label: "Almoxarifado" }]} allow={ROUTE_ROLES.almoxarifado}>
       <div className="space-y-6">
         {/* Indicators */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
@@ -144,8 +155,12 @@ export default function AlmoxarifadoPage() {
           <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
             <CardTitle>Estoque</CardTitle>
             <div className="flex gap-2 flex-wrap">
-              <Button variant="outline" onClick={()=>setEntryOpen(true)}><Plus className="mr-2 h-4 w-4" /> Entrada</Button>
-              <Button variant="outline" onClick={()=>setAdjOpen(true)}><RotateCcw className="mr-2 h-4 w-4" /> Ajuste</Button>
+              {canEnterStock && (
+                <Button variant="outline" onClick={()=>setEntryOpen(true)}><Plus className="mr-2 h-4 w-4" /> Entrada</Button>
+              )}
+              {canAdjustStock && (
+                <Button variant="outline" onClick={()=>setAdjOpen(true)}><RotateCcw className="mr-2 h-4 w-4" /> Ajuste</Button>
+              )}
               <div className="flex gap-2">
                 <Input placeholder="Buscar peça ou código..." value={search} onChange={e=>setSearch(e.target.value)} className="w-[250px]" />
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>

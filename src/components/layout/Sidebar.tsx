@@ -8,6 +8,7 @@ import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/co
 import { Menu } from "lucide-react";
 import Image from "next/image";
 import { useRole } from "@/context/RoleContext";
+import { navigationForRole, type NavIcon } from "@/lib/permissions";
 import {
   LayoutDashboard,
   Truck,
@@ -17,6 +18,16 @@ import {
   ArrowUpDown,
   BarChart2,
 } from "lucide-react";
+
+const NAV_ICONS: Record<NavIcon, React.ComponentType<{ className?: string }>> = {
+  dashboard: LayoutDashboard,
+  truck: Truck,
+  wrench: Wrench,
+  package: Package,
+  clipboard: ClipboardList,
+  movement: ArrowUpDown,
+  chart: BarChart2,
+};
 
 function NavLink({ href, title, icon: Icon, isActive }: { href: string; title: string; icon: React.ComponentType<{ className?: string }>; isActive: boolean }) {
   return (
@@ -35,7 +46,7 @@ function NavLink({ href, title, icon: Icon, isActive }: { href: string; title: s
   );
 }
 
-function Group({ label, items, pathname }: { label: string; items: { title: string; href: string; icon: React.ComponentType<{ className?: string }> }[]; pathname: string }) {
+function Group({ label, items, pathname }: { label: string; items: { title: string; href: string; icon: NavIcon }[]; pathname: string }) {
   return (
     <div className="space-y-1">
       <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
@@ -44,7 +55,7 @@ function Group({ label, items, pathname }: { label: string; items: { title: stri
           key={item.href}
           href={item.href}
           title={item.title}
-          icon={item.icon}
+          icon={NAV_ICONS[item.icon]}
           isActive={pathname === item.href}
         />
       ))}
@@ -52,61 +63,11 @@ function Group({ label, items, pathname }: { label: string; items: { title: stri
   );
 }
 
-function getGroupsForRole(role: string) {
-  switch (role) {
-    case "MANUTENCAO":
-      return [
-        {
-          label: "OPERAÇÃO",
-          items: [
-            { title: "Dashboard", href: "/manutencao", icon: LayoutDashboard },
-            { title: "Frota", href: "/frota", icon: Truck },
-            { title: "Ordens de Serviço", href: "/manutencao", icon: Wrench },
-            { title: "Minhas solicitações", href: "/manutencao/solicitacoes", icon: ClipboardList },
-          ],
-        },
-      ];
-    case "ALMOXARIFADO":
-      return [
-        {
-          label: "ALMOXARIFADO",
-          items: [
-            { title: "Dashboard", href: "/almoxarifado", icon: LayoutDashboard },
-            { title: "Estoque", href: "/almoxarifado", icon: Package },
-            { title: "Solicitações", href: "/almoxarifado/solicitacoes", icon: ClipboardList },
-            { title: "Movimentações", href: "/almoxarifado/movimentacoes", icon: ArrowUpDown },
-          ],
-        },
-      ];
-    case "GESTOR":
-      return [
-        {
-          label: "GESTÃO",
-          items: [
-            { title: "Dashboard", href: "/gestor", icon: LayoutDashboard },
-            { title: "Frota", href: "/frota", icon: Truck },
-            { title: "Manutenção", href: "/manutencao", icon: Wrench },
-            { title: "Almoxarifado", href: "/almoxarifado", icon: Package },
-          ],
-        },
-        {
-          label: "ANÁLISES",
-          items: [
-            { title: "Relatório Manutenção", href: "/relatorios/manutencao", icon: BarChart2 },
-            { title: "Relatório Estoque", href: "/relatorios/estoque", icon: BarChart2 },
-          ],
-        },
-      ];
-    default:
-      return [];
-  }
-}
-
 export function Sidebar() {
   const pathname = usePathname();
   const { currentRole } = useRole();
 
-  const groups = getGroupsForRole(currentRole || "");
+  const groups = navigationForRole(currentRole);
 
   return (
     <>

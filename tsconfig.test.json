@@ -16,5 +16,5 @@
     },
     "types": ["node"]
   },
-  "include": ["tests/**/*.ts", "src/lib/mocks/**/*.ts"]
+  "include": ["tests/**/*.ts", "src/lib/**/*.ts"]
 }

@@ -10,10 +10,9 @@ import { db } from "@/lib/mocks";
 import { Truck, Wrench, ClipboardList, Package, AlertTriangle, PackageCheck } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { ROUTE_ROLES } from "@/lib/permissions";
 
 export default function DashboardPage() {
-  useRoleGuard(["GESTOR", "MANUTENCAO", "ALMOXARIFADO"]);
   const totalVehicles = db.vehicles.length;
   const vehiclesInMaintenance = db.vehicles.filter(v => v.status === "Em manutenção").length;
   const openOrders = db.workOrders.filter(wo => wo.status !== "Finalizada").length;
@@ -90,7 +89,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <DashboardLayout title="Dashboard" breadcrumbs={[{ label: "Dashboard" }]}>
+    <DashboardLayout title="Dashboard" breadcrumbs={[{ label: "Dashboard" }]} allow={ROUTE_ROLES.dashboard}>
       <div className="space-y-8">
         {/* Header */}
         <div>

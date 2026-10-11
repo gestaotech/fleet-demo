@@ -7,11 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { db } from "@/lib/mocks";
-import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { ROUTE_ROLES } from "@/lib/permissions";
 
 export default function MinhasSolicitacoesPage() {
-  useRoleGuard(["GESTOR", "MANUTENCAO"]);
-
   const statusBadge = (s: string) => {
     switch (s) {
       case "Pendente": return <Badge variant="warning">{s}</Badge>;
@@ -25,7 +23,7 @@ export default function MinhasSolicitacoesPage() {
   const requests = [...db.partRequests].sort((a,b)=> new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return (
-    <DashboardLayout title="Minhas solicitações" breadcrumbs={[{ label: "Manutenção", href: "/manutencao" }, { label: "Solicitações" }]}>
+    <DashboardLayout title="Minhas solicitações" breadcrumbs={[{ label: "Manutenção", href: "/manutencao" }, { label: "Solicitações" }]} allow={ROUTE_ROLES.manutencao}>
       <Card>
         <CardHeader><CardTitle>Solicitações de peças</CardTitle></CardHeader>
         <CardContent>

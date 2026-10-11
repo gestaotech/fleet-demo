@@ -6,15 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { db } from "@/lib/mocks";
-import { Truck, Wrench, ClipboardList, Package, AlertTriangle, PackageCheck } from "lucide-react";
+import { db, getMovementsWithBalance } from "@/lib/mocks";
+import { Truck, Wrench, ClipboardList, Package, AlertTriangle, PackageCheck, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { ROUTE_ROLES } from "@/lib/permissions";
 
 export default function GestorPage() {
-  useRoleGuard(["GESTOR"]);
-
   const totalVehicles = db.vehicles.length;
   const vehiclesInMaintenance = db.vehicles.filter(v => v.status === "Em manutenção").length;
   const openOrders = db.workOrders.filter(wo => wo.status !== "Finalizada").length;
@@ -29,6 +27,7 @@ export default function GestorPage() {
 
   const pendingReqs = db.partRequests.filter(r => r.status === "Pendente").slice(0, 5);
   const lowStockParts = db.parts.filter(p => p.stock <= p.minStock).slice(0, 5);
+  const recentMovements = getMovementsWithBalance().slice(-5).reverse();
 
   const statusBadge = (status: string) => {
     switch (status) {
@@ -49,7 +48,7 @@ export default function GestorPage() {
   ];
 
   return (
-    <DashboardLayout title="Dashboard do Gestor" breadcrumbs={[{ label: "Gestor", href: "/gestor" }, { label: "Dashboard" }]}>
+    <DashboardLayout title="Dashboard do Gestor" breadcrumbs={[{ label: "Gestor", href: "/gestor" }, { label: "Dashboard" }]} allow={ROUTE_ROLES.gestor}>
       <div className="space-y-8">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Dashboard do Gestor</h1>
@@ -183,6 +182,47 @@ export default function GestorPage() {
                     <TableCell className="px-4"><Badge variant={p.stock <= 0 ? "destructive" : "warning"}>Baixo</Badge></TableCell>
                   </TableRow>
                 ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <ArrowUpDown className="h-5 w-5 text-brand-primary" />
+              Movimentações recentes
+            </CardTitle>
+            <Link href="/almoxarifado/movimentacoes" className="text-sm text-brand-primary hover:underline">
+              Ver todas
+            </Link>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader className="bg-muted/30">
+                <TableRow>
+                  <TableHead className="px-4">Data</TableHead>
+                  <TableHead className="px-4">Tipo</TableHead>
+                  <TableHead className="px-4">Peça</TableHead>
+                  <TableHead className="px-4 text-right">Qtd</TableHead>
+                  <TableHead className="px-4">Origem</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentMovements.map((m) => {
+                  const part = db.parts.find((p) => p.id === m.partId);
+                  return (
+                    <TableRow key={m.id}>
+                      <TableCell className="px-4">{new Date(m.date).toLocaleDateString("pt-BR")}</TableCell>
+                      <TableCell className="px-4">
+                        <Badge variant={m.type === "Entrada" ? "success" : m.type === "Saída" ? "destructive" : "secondary"}>{m.type}</Badge>
+                      </TableCell>
+                      <TableCell className="px-4">{part?.name} ({part?.code})</TableCell>
+                      <TableCell className="px-4 text-right font-mono">{m.quantity > 0 ? "+" : ""}{m.quantity}</TableCell>
+                      <TableCell className="px-4">{m.origin}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>

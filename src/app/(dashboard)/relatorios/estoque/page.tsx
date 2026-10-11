@@ -7,10 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { db } from "@/lib/mocks";
-import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { ROUTE_ROLES } from "@/lib/permissions";
 
 export default function RelEstoquePage() {
-  useRoleGuard(["GESTOR"]);
   const totalItems = db.parts.length;
   const lowStock = db.parts.filter(p=>p.stock<=p.minStock).length;
   const entradas = db.stockMovements.filter(m=>m.type==="Entrada").length;
@@ -21,7 +20,7 @@ export default function RelEstoquePage() {
   const topParts = Object.entries(partUsage).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([pid,qty])=> ({part:db.parts.find(p=>p.id===pid), qty}));
 
   return (
-    <DashboardLayout title="Relatório de Estoque" breadcrumbs={[{ label: "Relatórios", href: "/relatorios/estoque" }, { label: "Estoque" }]}>
+    <DashboardLayout title="Relatório de Estoque" breadcrumbs={[{ label: "Relatórios", href: "/relatorios/estoque" }, { label: "Estoque" }]} allow={ROUTE_ROLES.relatorios}>
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-4">
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total de itens</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{totalItems}</div></CardContent></Card>

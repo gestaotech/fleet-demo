@@ -12,13 +12,15 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { db, addWorkOrderItem, updateWorkOrderStatus, addServiceToWorkOrder, finalizeWorkOrder } from "@/lib/mocks";
-import { Plus, CheckCircle } from "lucide-react";
+import { db, updateWorkOrderStatus, addServiceToWorkOrder, finalizeWorkOrder, createPartRequest } from "@/lib/mocks";
+import { Plus, CheckCircle, Lock } from "lucide-react";
 import { toast } from "sonner";
-import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { useRole } from "@/context/RoleContext";
+import { can, ROUTE_ROLES } from "@/lib/permissions";
 
 export default function OSDetailPage() {
-  useRoleGuard(["GESTOR", "MANUTENCAO"]);
+  const { currentRole } = useRole();
+  const canManageOrders = can(currentRole, "workorder:manage");
   const params = useParams();
   const id = params.id as string;
   const wo = db.workOrders.find(w => w.id === id);
@@ -33,7 +35,7 @@ export default function OSDetailPage() {
   const [isServiceOpen, setIsServiceOpen] = useState(false);
   const [newService, setNewService] = useState({ name: "", description: "", status: "Pendente" });
 
-  if (!wo) return <DashboardLayout title="OS não encontrada" breadcrumbs={[{ label: "Manutenção", href: "/manutencao" }]}><p>OS não encontrada</p></DashboardLayout>;
+  if (!wo) return <DashboardLayout title="OS não encontrada" breadcrumbs={[{ label: "Manutenção", href: "/manutencao" }]} allow={ROUTE_ROLES.manutencao}><p>OS não encontrada</p></DashboardLayout>;
 
   const statusBadge = (s: string) => {
     switch (s) {
@@ -45,31 +47,28 @@ export default function OSDetailPage() {
   };
 
   const handleRequest = () => {
+    if (!canManageOrders) {
+      toast.error("Seu perfil não permite solicitar peças.");
+      return;
+    }
     if (wo.status === "Finalizada") {
       toast.error("Não é possível solicitar peças para uma OS finalizada.");
       return;
     }
-    if (!partId || qty <= 0) {
-      toast.error("Selecione a peça e informe uma quantidade válida.");
+    const result = createPartRequest({ workOrderId: wo.id, items: [{ partId, quantity: qty }] });
+    if (!result.success) {
+      toast.error(result.message);
       return;
     }
-    const reqId = `REQ-${String(db.partRequests.length + 1).padStart(5, "0")}`;
-    db.partRequests.push({
-      id: reqId,
-      workOrderId: wo.id,
-      vehicleId: wo.vehicleId,
-      requesterId: wo.mechanicId,
-      items: [{ partId, quantity: qty }],
-      status: "Pendente",
-      createdAt: new Date().toISOString(),
-    });
-    addWorkOrderItem(wo.id, { partId, quantity: qty, status: "Solicitada", requestId: reqId });
-    if (wo.status === "Aberta") updateWorkOrderStatus(wo.id, "Aguardando peças");
-    toast.success("Solicitação enviada ao almoxarifado.");
+    toast.success(result.message);
     setPartId(""); setQty(1); setObs("");
   };
 
   const handleAddService = () => {
+    if (!canManageOrders) {
+      toast.error("Seu perfil não permite alterar a ordem de serviço.");
+      return;
+    }
     if (!newService.name.trim()) { toast.error("Informe o nome do serviço"); return; }
     addServiceToWorkOrder(wo.id, newService.name);
     toast.success("Serviço adicionado à Ordem de Serviço.");
@@ -78,27 +77,33 @@ export default function OSDetailPage() {
   };
 
   const handleStatusChange = (newStatus: string) => {
+    if (!canManageOrders) {
+      toast.error("Seu perfil não permite alterar a ordem de serviço.");
+      return;
+    }
     updateWorkOrderStatus(wo.id, newStatus as typeof wo.status);
     toast.success(`Status alterado para ${newStatus}`);
   };
 
   const handleFinalize = () => {
-    // check pending requests
-    const pending = db.partRequests.some(r => r.workOrderId === wo.id && r.status === "Pendente");
-    if (pending) {
-      toast.error("Existem peças aguardando atendimento do almoxarifado.");
+    if (!canManageOrders) {
+      toast.error("Seu perfil não permite finalizar ordens de serviço.");
       return;
     }
-    finalizeWorkOrder(wo.id);
-    toast.success("Ordem de Serviço finalizada com sucesso.");
+    const result = finalizeWorkOrder(wo.id);
+    if (result.success) {
+      toast.success(result.message);
+    } else {
+      toast.error(result.message);
+    }
   };
 
-  if (!wo) return <DashboardLayout title="OS não encontrada" breadcrumbs={[{ label: "Manutenção", href: "/manutencao" }]}><p>OS não encontrada</p></DashboardLayout>;
+  if (!wo) return <DashboardLayout title="OS não encontrada" breadcrumbs={[{ label: "Manutenção", href: "/manutencao" }]} allow={ROUTE_ROLES.manutencao}><p>OS não encontrada</p></DashboardLayout>;
 
   const statusOptions = ["Aberta", "Em andamento", "Aguardando peças", "Finalizada"];
 
   return (
-    <DashboardLayout title={`OS ${wo.id}`} breadcrumbs={[{ label: "Manutenção", href: "/manutencao" }, { label: wo.id }]}>
+    <DashboardLayout title={`OS ${wo.id}`} breadcrumbs={[{ label: "Manutenção", href: "/manutencao" }, { label: wo.id }]} allow={ROUTE_ROLES.manutencao}>
       <div className="space-y-6">
         {/* Header */}
         <Card>
@@ -110,14 +115,22 @@ export default function OSDetailPage() {
               </div>
               <div className="flex items-center gap-3">
                 <Badge variant="outline">{statusBadge(wo.status)}</Badge>
-                <Select value={wo.status} onValueChange={handleStatusChange}>
-                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {statusOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {wo.status !== "Finalizada" && (
-                  <Button variant="secondary" onClick={handleFinalize}><CheckCircle className="mr-2 h-4 w-4" /> Finalizar</Button>
+                {canManageOrders ? (
+                  <>
+                    <Select value={wo.status} onValueChange={handleStatusChange}>
+                      <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {statusOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {wo.status !== "Finalizada" && (
+                      <Button variant="secondary" onClick={handleFinalize}><CheckCircle className="mr-2 h-4 w-4" /> Finalizar</Button>
+                    )}
+                  </>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs text-text-secondary">
+                    <Lock className="h-3.5 w-3.5" /> Somente leitura
+                  </span>
                 )}
               </div>
             </div>
@@ -142,6 +155,7 @@ export default function OSDetailPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Serviços</CardTitle>
+            {canManageOrders && (
             <Dialog open={isServiceOpen} onOpenChange={setIsServiceOpen}>
               <DialogTrigger asChild>
                 <Button size="sm"><Plus className="mr-2 h-4 w-4" /> Adicionar serviço</Button>
@@ -172,6 +186,7 @@ export default function OSDetailPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            )}
           </CardHeader>
           <CardContent>
             {wo.services.length === 0 ? (
@@ -188,6 +203,7 @@ export default function OSDetailPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Peças</CardTitle>
+            {canManageOrders && (
             <Dialog>
               <DialogTrigger asChild>
                 <Button size="sm"><Plus className="mr-2 h-4 w-4" /> Solicitar peça</Button>
@@ -218,6 +234,7 @@ export default function OSDetailPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            )}
           </CardHeader>
           <CardContent>
             {wo.items.length === 0 ? (

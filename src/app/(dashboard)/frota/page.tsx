@@ -14,10 +14,13 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { db } from "@/lib/mocks";
 import { Plus, Search } from "lucide-react";
 import Link from "next/link";
-import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { useRole } from "@/context/RoleContext";
+import { can, ROUTE_ROLES } from "@/lib/permissions";
+import { toast } from "sonner";
 
 export default function FrotaPage() {
-  useRoleGuard(["GESTOR", "MANUTENCAO"]);
+  const { currentRole } = useRole();
+  const canManageFleet = can(currentRole, "fleet:manage");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Todos");
   const [newVehicle, setNewVehicle] = useState({ name: "", plate: "", model: "", year: "", km: "" });
@@ -41,6 +44,10 @@ export default function FrotaPage() {
   };
 
   const handleAddVehicle = () => {
+    if (!canManageFleet) {
+      toast.error("Seu perfil não permite cadastrar veículos.");
+      return;
+    }
     const id = `v${Date.now()}`;
     db.vehicles.push({
       id,
@@ -57,10 +64,11 @@ export default function FrotaPage() {
   };
 
   return (
-    <DashboardLayout title="Frota" breadcrumbs={[{ label: "Frota" }]}>
+    <DashboardLayout title="Frota" breadcrumbs={[{ label: "Frota" }]} allow={ROUTE_ROLES.frota}>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <CardTitle>Veículos</CardTitle>
+          {canManageFleet && (
           <Dialog>
             <DialogTrigger asChild>
               <Button><Plus className="mr-2 h-4 w-4" /> Novo veículo</Button>
@@ -99,6 +107,7 @@ export default function FrotaPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          )}
         </div>
 
         {/* Filters */}

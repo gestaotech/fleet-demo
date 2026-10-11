@@ -15,11 +15,13 @@ import { db, createWorkOrder } from "@/lib/mocks";
 import { Search, Plus, Truck, ClipboardList, AlertTriangle, PackageCheck } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { useRole } from "@/context/RoleContext";
+import { can, ROUTE_ROLES } from "@/lib/permissions";
 import { toast } from "sonner";
 
 export default function ManutencaoPage() {
-  useRoleGuard(["GESTOR", "MANUTENCAO"]);
+  const { currentRole } = useRole();
+  const canManageOrders = can(currentRole, "workorder:manage");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Todas");
   const statuses = ["Todas", "Aberta", "Em andamento", "Aguardando peças", "Finalizada"];
@@ -57,6 +59,10 @@ export default function ManutencaoPage() {
   const [creating, setCreating] = useState(false);
 
   const handleCreate = async () => {
+    if (!canManageOrders) {
+      toast.error("Seu perfil não permite criar ordens de serviço.");
+      return;
+    }
     if (!newOS.vehicleId || !newOS.problem || !newOS.mechanicId) {
       toast.error("Preencha todos os campos obrigatórios");
       return;
@@ -83,7 +89,7 @@ export default function ManutencaoPage() {
   ];
 
   return (
-    <DashboardLayout title="Manutenção" breadcrumbs={[{ label: "Manutenção" }]}>
+    <DashboardLayout title="Manutenção" breadcrumbs={[{ label: "Manutenção" }]} allow={ROUTE_ROLES.manutencao}>
       <div className="space-y-8">
         {/* Indicators */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -111,6 +117,7 @@ export default function ManutencaoPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Ordens de Serviço</CardTitle>
+            {canManageOrders && (
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
               <DialogTrigger asChild>
                 <Button><Plus className="mr-2 h-4 w-4" /> Nova OS</Button>
@@ -151,6 +158,7 @@ export default function ManutencaoPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            )}
           </CardHeader>
           <CardContent className="pt-0">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">

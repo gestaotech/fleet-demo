@@ -10,16 +10,15 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { db } from "@/lib/mocks";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { ROUTE_ROLES } from "@/lib/permissions";
 
 export default function FrotaDetailPage() {
-  useRoleGuard(["GESTOR", "MANUTENCAO"]);
   const params = useParams();
   const id = params.id as string;
   const vehicle = db.vehicles.find(v => v.id === id);
   const orders = db.workOrders.filter(wo => wo.vehicleId === id).sort((a,b)=> new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  if (!vehicle) return <DashboardLayout title="Veículo não encontrado" breadcrumbs={[{ label: "Frota", href: "/frota" }]}><p>Veículo não encontrado</p></DashboardLayout>;
+  if (!vehicle) return <DashboardLayout title="Veículo não encontrado" breadcrumbs={[{ label: "Frota", href: "/frota" }]} allow={ROUTE_ROLES.frota}><p>Veículo não encontrado</p></DashboardLayout>;
 
   const statusBadge = (s: string) => {
     switch (s) {
@@ -38,7 +37,7 @@ export default function FrotaDetailPage() {
   };
 
   return (
-    <DashboardLayout title={vehicle.name} breadcrumbs={[{ label: "Frota", href: "/frota" }, { label: vehicle.name }]}>
+    <DashboardLayout title={vehicle.name} breadcrumbs={[{ label: "Frota", href: "/frota" }, { label: vehicle.name }]} allow={ROUTE_ROLES.frota}>
       <div className="space-y-6">
         {/* Info cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
