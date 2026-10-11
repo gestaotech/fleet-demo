@@ -7,6 +7,10 @@ import {
   addStockEntry,
   adjustStock,
   getMovementsWithBalance,
+  createWorkOrder,
+  changeWorkOrderStatus,
+  canFinalizeWorkOrder,
+  updateWorkOrderStatus,
 } from '../src/lib/mocks';
 
 type RequestStatus = (typeof db.partRequests)[number]['status'];
@@ -340,4 +344,56 @@ test('Dados de demonstração: todo saldo histórico é consistente com o cadast
       assert.ok(item.quantity > 0, `quantidade inválida em ${req.id}`);
     }
   }
+});
+
+test('L — troca direta de status não finaliza OS com solicitação em aberto', () => {
+  const wo = workOrder('OS-00117');
+  wo.status = 'Aguardando peças';
+  const p1 = part('p1');
+  const stockBefore = p1.stock;
+  const movCount = db.stockMovements.length;
+  const req = makeRequest({ id: 'REQ-TEST-L', workOrderId: wo.id, items: [{ partId: 'p1', quantity: 1 }] });
+
+  // A UI usa changeWorkOrderStatus: finalizar com solicitação aberta deve falhar.
+  const result = changeWorkOrderStatus(wo.id, 'Finalizada');
+  assert.equal(result.success, false);
+  assert.equal(wo.status, 'Aguardando peças');
+  assert.equal(p1.stock, stockBefore);
+  assert.equal(db.stockMovements.length, movCount);
+  assert.equal(req.status, 'Pendente');
+
+  // Reforço no nível de dados: setar o status direto para "Finalizada" é ignorado.
+  updateWorkOrderStatus(wo.id, 'Finalizada');
+  assert.equal(wo.status, 'Aguardando peças');
+
+  // Após processar a solicitação, a finalização pelo fluxo validado é permitida.
+  assert.equal(confirmWithdrawal(req.id).success, true);
+  assert.equal(canFinalizeWorkOrder(wo.id).success, true);
+  assert.equal(changeWorkOrderStatus(wo.id, 'Finalizada').success, true);
+  assert.equal(wo.status, 'Finalizada');
+});
+
+test('M — troca de status normal é aplicada e retorna mensagem', () => {
+  const wo = workOrder('OS-00117');
+  assert.notEqual(wo.status, 'Em andamento');
+  const result = changeWorkOrderStatus(wo.id, 'Em andamento');
+  assert.equal(result.success, true);
+  assert.equal(wo.status, 'Em andamento');
+
+  const noop = changeWorkOrderStatus(wo.id, 'Em andamento');
+  assert.equal(noop.success, true);
+
+  const unknown = changeWorkOrderStatus('OS-INEXISTENTE', 'Em andamento');
+  assert.equal(unknown.success, false);
+});
+
+test('N — OS finalizada não é finalizada novamente por troca de status', () => {
+  const wo = createWorkOrder({ vehicleId: db.vehicles[0].id, mechanicId: db.mechanics[0].id, problem: 'Revisão' });
+  assert.equal(canFinalizeWorkOrder(wo.id).success, true);
+  assert.equal(changeWorkOrderStatus(wo.id, 'Finalizada').success, true);
+  assert.equal(wo.status, 'Finalizada');
+
+  const again = changeWorkOrderStatus(wo.id, 'Finalizada');
+  assert.equal(again.success, false);
+  assert.equal(wo.status, 'Finalizada');
 });

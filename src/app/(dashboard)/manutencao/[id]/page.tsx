@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { db, updateWorkOrderStatus, addServiceToWorkOrder, finalizeWorkOrder, createPartRequest } from "@/lib/mocks";
+import { db, changeWorkOrderStatus, addServiceToWorkOrder, finalizeWorkOrder, createPartRequest } from "@/lib/mocks";
 import { Plus, CheckCircle, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/context/RoleContext";
@@ -81,8 +81,12 @@ export default function OSDetailPage() {
       toast.error("Seu perfil não permite alterar a ordem de serviço.");
       return;
     }
-    updateWorkOrderStatus(wo.id, newStatus as typeof wo.status);
-    toast.success(`Status alterado para ${newStatus}`);
+    const result = changeWorkOrderStatus(wo.id, newStatus as typeof wo.status);
+    if (result.success) {
+      toast.success(result.message);
+    } else {
+      toast.error(result.message);
+    }
   };
 
   const handleFinalize = () => {

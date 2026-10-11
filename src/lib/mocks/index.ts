@@ -84,7 +84,9 @@ export function addWorkOrderItem(woId: string, item: typeof workOrders[0]['items
 }
 export function updateWorkOrderStatus(woId: string, status: typeof workOrders[0]['status']) {
   const wo = findWorkOrder(woId);
-  if (wo) {
+  // "Finalizada" só pode ser aplicada pelo fluxo validado (finalizeWorkOrder),
+  // nunca por uma troca direta de status.
+  if (wo && status !== 'Finalizada') {
     wo.status = status;
     wo.updatedAt = new Date().toISOString();
   }
@@ -192,6 +194,21 @@ export function finalizeWorkOrder(woId: string): OperationResult {
   wo.status = 'Finalizada';
   wo.updatedAt = new Date().toISOString();
   return { success: true, message: 'Ordem de Serviço finalizada com sucesso.' };
+}
+
+// Troca de status feita pela UI. Encaminha a finalização para o fluxo validado
+// (finalizeWorkOrder), impedindo que a OS seja finalizada com solicitações em
+// aberto ou itens ainda "Solicitada" apenas mudando o status.
+export function changeWorkOrderStatus(
+  woId: string,
+  status: typeof workOrders[0]['status']
+): OperationResult {
+  const wo = findWorkOrder(woId);
+  if (!wo) return { success: false, message: 'Ordem de Serviço não encontrada.' };
+  if (status === 'Finalizada') return finalizeWorkOrder(woId);
+  if (wo.status === status) return { success: true, message: `O status já é "${status}".` };
+  updateWorkOrderStatus(woId, status);
+  return { success: true, message: `Status alterado para "${status}".` };
 }
 
 // Stock specific mutations
