@@ -129,3 +129,25 @@ test('filtro de estoque por situação e pesquisa por código ou descrição', (
   assert.equal(W().filterInventory(rows, { termo: 'flt-1002' }).length, 1);
   assert.equal(W().filterInventory(rows, { termo: 'pneu' }).length, 1);
 });
+
+test('pesquisa do almoxarifado ignora caixa e acentos e combina com o filtro de situação', () => {
+  const s = app.fresh();
+  const rows = W().inventory(s);
+  /* "óleo" aparece em "Filtro de óleo do motor" (PEC-001) e no óleo lubrificante (PEC-006). */
+  assert.equal(W().filterInventory(rows, { termo: 'ÓLEO' }).length, 2, 'busca com acento');
+  assert.equal(W().filterInventory(rows, { termo: 'oleo' }).length, 2, 'busca sem acento acha o mesmo resultado');
+  assert.equal(W().filterInventory(rows, { termo: '  filtro  ' }).length, 3, 'espaços nas pontas são ignorados');
+  assert.equal(W().filterInventory(rows, { termo: 'óleo do motor' }).length, 2, 'PEC-001 (filtro) e PEC-006 (óleo)');
+  assert.equal(W().filterInventory(rows, { termo: 'oleo do motor 15W40' }).length, 1);
+  /* Combinação: termo + situação. PEC-005 (lona) e PEC-010 (pneu) são os de estoque baixo. */
+  const combinado = W().filterInventory(rows, { termo: 'freio', situacao: 'Baixo' });
+  assert.equal(combinado.length, 1, 'apenas a lona de freio traseira está com estoque baixo');
+  assert.equal(combinado[0].id, 'PEC-005');
+  assert.equal(W().filterInventory(rows, { termo: 'freio', situacao: 'Zerado' }).length, 0);
+  assert.equal(W().filterInventory(rows, { termo: 'óleo', situacao: 'Baixo' }).length, 0, 'o óleo está com saldo normal');
+  /* Estado vazio: nenhum resultado é uma lista vazia, não um erro. */
+  assert.equal(W().filterInventory(rows, { termo: 'peça-inexistente-xyz' }).length, 0);
+  /* Sem filtros, devolve tudo. */
+  assert.equal(W().filterInventory(rows, {}).length, rows.length);
+  assert.equal(W().filterInventory(rows, { termo: '' }).length, rows.length);
+});

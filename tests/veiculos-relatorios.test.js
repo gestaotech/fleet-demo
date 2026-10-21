@@ -89,6 +89,64 @@ test('relatório completo respeita o período informado', () => {
   assert.equal(r.rows.length, 4, 'MOV-021 a MOV-024');
 });
 
+test('relatório geral inclui trocas de óleo, abastecimentos e total geral', () => {
+  const s = app.fresh();
+  const g = R().fleetGeneral(s);
+  assert.equal(g.trocasOleo, 6);
+  assert.equal(g.trocasOleoVencidas, 2);
+  assert.equal(g.abastecimentosNoPeriodo, 16);
+  assert.equal(g.custos.combustivel.total, 17235.9);
+  assert.equal(g.custos.totalGeral, Math.round((g.custos.total + 17235.9) * 100) / 100);
+});
+
+test('relatório de combustível soma litros, gastos e destaca veículos sem consumo', () => {
+  const s = app.fresh();
+  const r = R().fuelReport(s);
+  assert.equal(r.totals.registros, 16);
+  assert.equal(r.totals.litros, 2876.5);
+  assert.equal(r.totals.valor, 17235.9);
+  assert.equal(r.totals.veiculosComConsumo, 5);
+  assert.equal(r.totals.veiculosSemDados, 3);
+  const v1 = r.vehicles.find(v => v.veiculoId === 'VEI-001');
+  assert.equal(v1.consumoMedio, 3.53);
+  const v5 = r.vehicles.find(v => v.veiculoId === 'VEI-005');
+  assert.equal(v5.consumoMedio, null);
+  assert.match(v5.consumoStatus, /Dados insuficientes/);
+});
+
+test('relatório de combustível respeita o período e ordena por gasto', () => {
+  const s = app.fresh();
+  const r = R().fuelReport(s, { from: '2026-09-01', to: '2026-09-30' });
+  assert.equal(r.totals.registros, 6);
+  for (let i = 1; i < r.vehicles.length; i += 1) {
+    assert.ok(r.vehicles[i - 1].valor >= r.vehicles[i].valor, 'ordenado do maior gasto para o menor');
+  }
+});
+
+test('relatório de trocas de óleo lista últimos limites e alertas por veículo', () => {
+  const s = app.fresh();
+  const r = R().oilReport(s, {}, { hoje: '2026-10-21' });
+  assert.equal(r.totals.total, 6);
+  assert.equal(r.totals.vencidas, 2);
+  assert.equal(r.totals.proximas, 1);
+  const v1 = r.porVeiculo.find(v => v.veiculoId === 'VEI-001');
+  assert.equal(v1.situacao, 'Próxima da troca');
+  assert.equal(v1.limiteKm, 51000);
+  const v2 = r.porVeiculo.find(v => v.veiculoId === 'VEI-002');
+  assert.equal(v2.situacao, 'Vencida por quilometragem');
+  assert.equal(r.configuracoes.alertaTrocaOleoKm, 1000);
+  assert.equal(r.configuracoes.alertaTrocaOleoDias, 30);
+});
+
+test('relatório de trocas de óleo filtra por situação e por veículo', () => {
+  const s = app.fresh();
+  const vencidas = R().oilReport(s, { situacao: 'Vencida por tempo' }, { hoje: '2026-10-21' });
+  assert.equal(vencidas.rows.length, 1);
+  const doVeiculo = R().oilReport(s, { veiculoId: 'VEI-006' }, { hoje: '2026-10-21' });
+  assert.equal(doVeiculo.rows.length, 1);
+  assert.equal(doVeiculo.rows[0].veiculoPlaca, 'DEM6F06');
+});
+
 test('relatório de retiradas filtra por veículo e peça', () => {
   const s = app.fresh();
   assert.equal(R().withdrawalsReport(s, { veiculoId: 'VEI-002' }).rows.length, 3);

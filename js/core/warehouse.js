@@ -39,9 +39,9 @@ const Warehouse = (function () {
 
   /* filtros: { termo, situacao: 'Todas'|'Baixo'|'Zerado' } */
   function filterInventory(rows, filters = {}) {
-    const termo = Utils.normalizeText(filters.termo).toLowerCase();
+    const termo = Utils.searchKey(filters.termo);
     return rows.filter(r => {
-      if (termo && !`${r.codigo} ${r.descricao}`.toLowerCase().includes(termo)) return false;
+      if (termo && !Utils.searchKey(`${r.codigo} ${r.descricao}`).includes(termo)) return false;
       if (filters.situacao === 'Baixo' && !r.baixo) return false;
       if (filters.situacao === 'Zerado' && r.saldo > 0) return false;
       return true;

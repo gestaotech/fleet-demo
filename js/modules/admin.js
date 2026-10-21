@@ -116,6 +116,44 @@ const AdminScreens = (function () {
     });
   }
 
+  function settings(main, params, ctx) {
+    const conf = Oil.configuracoes(ctx.state);
+    main.innerHTML = `
+      ${pageHeader('Parâmetros da demonstração', 'Regras que podem ser ajustadas sem alterar o código.')}
+      <form class="card form-grid" id="settings-form" novalidate>
+        <div class="form-errors full" id="form-errors"></div>
+        <label class="field">Antecedência do alerta de troca de óleo (km)
+          <input name="alertaTrocaOleoKm" type="number" min="0" step="1" inputmode="numeric" required value="${esc(conf.alertaTrocaOleoKm)}">
+          <span class="hint">A troca entra em "Próxima da troca" quando faltam estes km ou menos. Valor padrão: 1000 km.</span>
+        </label>
+        <label class="field">Antecedência do alerta de troca de óleo (dias)
+          <input name="alertaTrocaOleoDias" type="number" min="0" step="1" inputmode="numeric" required value="${esc(conf.alertaTrocaOleoDias)}">
+          <span class="hint">Considera o intervalo em meses informado em cada troca. Valor padrão: 30 dias.</span>
+        </label>
+        <p class="hint full">O sistema não define um intervalo universal de troca: os intervalos em quilômetros e em meses são informados em cada registro.</p>
+        <div class="form-actions full">
+          <button class="btn btn-primary" type="submit">Salvar parâmetros</button>
+        </div>
+      </form>`;
+    main.querySelector('#settings-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const data = readForm(event.currentTarget);
+      const km = Utils.parseInteger(data.alertaTrocaOleoKm);
+      const dias = Utils.parseInteger(data.alertaTrocaOleoDias);
+      const errors = [];
+      if (!Number.isInteger(km) || km < 0) errors.push('Informe a antecedência em quilômetros como número inteiro (zero ou maior).');
+      if (!Number.isInteger(dias) || dias < 0) errors.push('Informe a antecedência em dias como número inteiro (zero ou maior).');
+      if (errors.length) {
+        UI.showErrors(main.querySelector('#form-errors'), errors);
+        return;
+      }
+      ctx.state.configuracoes = { alertaTrocaOleoKm: km, alertaTrocaOleoDias: dias };
+      ctx.save();
+      ctx.toast('Parâmetros atualizados.');
+      ctx.refresh();
+    });
+  }
+
   function dataPage(main, params, ctx) {
     main.innerHTML = `
       ${pageHeader('Dados da demonstração', 'Todos os dados são fictícios e servem apenas para apresentação.')}
@@ -140,5 +178,5 @@ const AdminScreens = (function () {
     });
   }
 
-  return { home, users, userForm, dataPage };
+  return { home, users, userForm, settings, dataPage };
 })();

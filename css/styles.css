@@ -131,6 +131,10 @@ legend { font-weight: 600; color: var(--gray-700); padding: 0 6px; }
 .form-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 .filter-bar { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-bottom: 14px; }
 .filter-bar .field { flex: 1 1 200px; }
+.filter-bar .field-action { flex: 0 0 auto; display: flex; align-items: flex-end; }
+.filter-bar .field-action .btn { white-space: nowrap; }
+.checkbox { flex-direction: row; align-items: center; gap: 8px; }
+.checkbox input { width: auto; }
 .form-errors:empty { display: none; }
 
 /* Botões */

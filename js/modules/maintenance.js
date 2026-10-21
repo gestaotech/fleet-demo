@@ -54,6 +54,10 @@ const MaintenanceScreens = (function () {
           <select name="veiculoId" required><option value="">Selecione…</option>${ctx.state.veiculos.filter(Vehicles.isActive).map(v => option(v.id, `${v.placa} – ${v.marca}`)).join('')}</select>
         </label>
         <label class="field">Data e hora de entrada<input name="dataEntrada" type="datetime-local" required value="${Utils.nowIso()}"></label>
+        <label class="field">Quilometragem de entrada (km)
+          <input name="quilometragem" type="number" min="0" step="1" inputmode="numeric" placeholder="Opcional">
+          <span class="hint" data-km-hint>Informe a quilometragem do veículo ao entrar na oficina.</span>
+        </label>
         <label class="field full">Descrição do problema<textarea name="descricaoProblema" rows="3" required></textarea></label>
         <label class="field full">Observações<textarea name="observacoes" rows="2"></textarea></label>
         <label class="field">Responsável pelo registro<input name="responsavel" required></label>
@@ -63,7 +67,19 @@ const MaintenanceScreens = (function () {
         </div>
       </form>`;
 
-    main.querySelector('#maintenance-form').addEventListener('submit', event => {
+    const formEl = main.querySelector('#maintenance-form');
+    const veiculoSelect = formEl.querySelector('[name="veiculoId"]');
+    const kmInput = formEl.querySelector('[name="quilometragem"]');
+    veiculoSelect.addEventListener('change', () => {
+      const km = Vehicles.currentKm(ctx.state, veiculoSelect.value);
+      const hint = formEl.querySelector('[data-km-hint]');
+      hint.textContent = km === null
+        ? 'Sem quilometragem anterior registrada para este veículo.'
+        : `Última quilometragem registrada: ${Utils.formatKm(km)}.`;
+      if (km !== null && !kmInput.value) kmInput.value = String(km);
+    });
+
+    formEl.addEventListener('submit', event => {
       event.preventDefault();
       const result = Maintenance.open(ctx.state, readForm(event.currentTarget));
       if (!result.ok) {
@@ -105,6 +121,7 @@ const MaintenanceScreens = (function () {
           <dl class="details">
             <dt>Situação</dt><dd>${manutencaoBadge(m.status)}</dd>
             <dt>Entrada</dt><dd>${Utils.formatDateTime(m.dataEntrada)}</dd>
+            <dt>Quilometragem de entrada</dt><dd>${m.quilometragem === null || m.quilometragem === undefined ? 'Não informada' : Utils.formatKm(m.quilometragem)}</dd>
             <dt>Conclusão</dt><dd>${Utils.formatDateTime(m.dataConclusao)}</dd>
             <dt>Responsável</dt><dd>${esc(m.responsavel)}</dd>
             <dt>Problema</dt><dd>${esc(m.descricaoProblema)}</dd>
@@ -121,6 +138,7 @@ const MaintenanceScreens = (function () {
         ${kpi('Peças do almoxarifado', Utils.formatMoney(costs.pecasAlmoxarifado))}
         ${kpi('Peças externas', Utils.formatMoney(costs.pecasExternas))}
         ${kpi('Despesas', Utils.formatMoney(costs.outrasDespesas))}
+        ${kpi('Trocas de óleo', Utils.formatMoney(costs.trocasOleoProprias), 'Custo próprio, sem duplicar retiradas')}
         ${kpi('Custo total', Utils.formatMoney(costs.total))}
       </section>
       <section class="card">
@@ -140,6 +158,28 @@ const MaintenanceScreens = (function () {
           costs.despesas.map(d => [Utils.formatDate(d.data), esc(d.descricao), Utils.formatMoney(d.valor)]),
           'Nenhuma despesa registrada.',
         )}
+      </section>
+      <section class="card">
+        <h2>Trocas de óleo vinculadas</h2>
+        ${table(
+          [{ label: 'Data' }, { label: 'Óleo' }, { label: 'Litros', align: 'right' }, { label: 'Custo', align: 'right' },
+            { label: 'Origem do custo' }, { label: 'Próxima (km)', align: 'right' }, { label: 'Situação' }],
+          costs.trocasOleo.map(t => {
+            const info = Oil.status(ctx.state, t);
+            return [
+              Utils.formatDate(t.data),
+              esc(t.especificacao),
+              Utils.formatQuantity(t.quantidade),
+              Utils.formatMoney(Oil.totalCost(ctx.state, t)),
+              t.movimentacaoId ? `Retirada ${esc(t.movimentacaoId)}` : 'Custo próprio',
+              info.limiteKm === null ? '—' : Utils.formatKm(info.limiteKm),
+              OilScreens.situacaoBadge(info.situacao),
+            ];
+          }),
+          'Nenhuma troca de óleo registrada nesta manutenção.',
+        )}
+        <p class="muted small">Trocas vinculadas a esta manutenção. O valor aparece uma única vez: quando o óleo vem do almoxarifado, o custo é o da retirada.</p>
+        ${open ? `<a class="btn btn-ghost" href="#/manutencao/oleo/nova">Registrar troca de óleo</a>` : ''}
       </section>
       ${open ? `
       <section class="card">
