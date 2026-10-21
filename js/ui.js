@@ -62,6 +62,15 @@ const UI = (function () {
     return `<option value="${esc(value)}"${selected ? ' selected' : ''}>${esc(label)}</option>`;
   }
 
+  /*
+   * Seletor de mês e ano a partir das opções { value, label, selected } calculadas no núcleo.
+   * O valor é o mês no formato AAAA-MM e a opção vazia significa "sem filtro de período".
+   */
+  function monthSelect(name, opcoes, extraAttrs = '') {
+    const options = opcoes.map(o => option(o.value, o.label, Boolean(o.selected))).join('');
+    return `<select name="${esc(name)}" id="${esc(name)}" ${extraAttrs}>${options}</select>`;
+  }
+
   /* Lê o formulário em objeto. Checkboxes com o mesmo name viram array; checkbox único vira boolean. */
   function readForm(form) {
     const data = {};
@@ -97,6 +106,6 @@ const UI = (function () {
 
   return {
     esc, badge, situacaoBadge, operacionalBadge, manutencaoBadge, kpi, pageHeader,
-    table, errorBox, successBox, showErrors, option, readForm, toast, confirmAction,
+    table, errorBox, successBox, showErrors, option, monthSelect, readForm, toast, confirmAction,
   };
 })();

@@ -1,8 +1,22 @@
-/* Telas do módulo Veículos: lista, cadastro/edição e relatório individual de cada veículo. */
+/* Telas do módulo Veículos: lista, cadastro/edição e histórico integrado de cada veículo. */
 const VehicleScreens = (function () {
-  const { esc, kpi, pageHeader, table, option, readForm, situacaoBadge, operacionalBadge, manutencaoBadge } = UI;
+  const { esc, kpi, pageHeader, table, option, monthSelect, readForm, situacaoBadge, operacionalBadge, manutencaoBadge } = UI;
+
+  /* Estado do filtro mensal entre navegações (lista -> detalhes -> voltar). */
+  let mesSelecionado = '';
+
+  function periodFrom(anoMes) {
+    return Period.resolve(anoMes);
+  }
+
+  function monthFieldHtml(state, selected) {
+    return `<label class="field">Mês e ano
+      ${monthSelect('mes', Period.monthOptions(state, selected), 'data-month-filter')}
+    </label>`;
+  }
 
   function list(main, params, ctx) {
+    const meses = Period.availableMonths(ctx.state);
     main.innerHTML = `
       ${pageHeader('Veículos', 'Cadastro da frota. Situação cadastral e situação operacional são mostradas separadamente.',
         '<a class="btn btn-primary" href="#/veiculos/novo">Novo veículo</a>')}
@@ -15,33 +29,76 @@ const VehicleScreens = (function () {
           <label class="field">Situação operacional
             <select id="v-operacional"><option value="Todos">Todas</option><option value="Disponível">Disponíveis</option><option value="Em manutenção">Em manutenção</option></select>
           </label>
+          ${monthFieldHtml(ctx.state, mesSelecionado)}
+          <div class="field-action"><button type="button" class="btn btn-ghost" id="v-limpar">Limpar filtro de mês</button></div>
         </div>
+        <p class="muted small" id="v-periodo-info"></p>
+        <div id="v-kpis"></div>
         <div id="v-table"></div>
       </section>`;
 
+    const mesSelect = main.querySelector('#mes');
+    /* Um mês salvo que não existe mais nos dados é descartado (evita filtro silenciosamente vazio). */
+    if (mesSelecionado && !meses.includes(mesSelecionado)) mesSelecionado = '';
+    if (mesSelecionado) mesSelect.value = mesSelecionado;
+
     const render = () => {
+      const period = periodFrom(mesSelect.value);
       const filtered = Vehicles.filter(ctx.state, {
         termo: main.querySelector('#v-term').value,
         situacao: main.querySelector('#v-situacao').value,
         operacional: main.querySelector('#v-operacional').value,
       });
+      const resumos = Reports.vehicleSummaries(ctx.state, period, filtered);
+
+      main.querySelector('#v-periodo-info').textContent = period.anoMes
+        ? `Período selecionado: ${Period.monthLabel(period.anoMes)}. Os totais consideram apenas as movimentações do mês.`
+        : 'Sem filtro de mês: os totais consideram todas as movimentações registradas.';
+
+      const totalManutencao = Utils.sum(resumos, r => r.custos.total);
+      const totalCombustivel = Utils.sum(resumos, r => r.custos.combustivel.total);
+      const totalLitros = Math.round(resumos.reduce((acc, r) => acc + r.custos.combustivel.litros, 0) * 1000) / 1000;
+      const semRegistros = resumos.filter(r => !r.temRegistros).length;
+      main.querySelector('#v-kpis').innerHTML = `<section class="kpi-grid">
+        ${kpi('Veículos na lista', String(resumos.length))}
+        ${kpi('Manutenção no período', Utils.formatMoney(totalManutencao))}
+        ${kpi('Combustível no período', Utils.formatMoney(totalCombustivel), `${Utils.formatQuantity(totalLitros)} litros`)}
+        ${kpi('Total no período', Utils.formatMoney(Utils.round2(totalManutencao + totalCombustivel)))}
+        ${kpi('Sem movimentação no período', String(semRegistros))}
+      </section>`;
+
       main.querySelector('#v-table').innerHTML = table(
-        [{ label: 'Placa' }, { label: 'Marca / modelo' }, { label: 'Identificação' }, { label: 'Entrada na frota' },
-          { label: 'Cadastro' }, { label: 'Operacional' }, { label: '' }],
-        filtered.map(v => [
-          `<strong>${esc(v.placa)}</strong>`,
-          esc(v.marca),
-          esc(v.identificacao),
-          Utils.formatDate(v.dataEntrada),
-          situacaoBadge(v.situacao),
-          operacionalBadge(Vehicles.operationalStatus(ctx.state, v.id)),
-          `<div class="row-actions"><a class="link" href="#/veiculos/${esc(v.id)}">Detalhes</a><a class="link" href="#/veiculos/${esc(v.id)}/editar">Editar</a></div>`,
-        ]),
+        [{ label: 'Placa' }, { label: 'Marca / modelo' }, { label: 'Identificação' }, { label: 'Cadastro' },
+          { label: 'Operacional' }, { label: 'Movimentações' }, { label: 'Custo no período', align: 'right' }, { label: '' }],
+        resumos.map(r => {
+          const v = r.veiculo;
+          const mov = r.temRegistros
+            ? `${r.eventos.length} registro(s) · ${r.contagens.manutencoes} manut., ${r.contagens.trocasOleo} óleo, ${r.contagens.abastecimentos} abastec.`
+            : '<span class="badge badge-muted">Sem registros no período</span>';
+          return [
+            `<strong>${esc(v.placa)}</strong>`,
+            esc(v.marca),
+            esc(v.identificacao),
+            situacaoBadge(v.situacao),
+            operacionalBadge(Vehicles.operationalStatus(ctx.state, v.id)),
+            mov,
+            Utils.formatMoney(r.totalGeral),
+            `<div class="row-actions"><a class="link" href="#/veiculos/${esc(v.id)}">Detalhes</a><a class="link" href="#/veiculos/${esc(v.id)}/editar">Editar</a></div>`,
+          ];
+        }),
         'Nenhum veículo corresponde ao filtro.',
       );
     };
+
     ['#v-term', '#v-situacao', '#v-operacional'].forEach(sel => {
       main.querySelector(sel).addEventListener(sel === '#v-term' ? 'input' : 'change', render);
+    });
+    mesSelect.addEventListener('change', () => { mesSelecionado = mesSelect.value; render(); });
+    main.querySelector('#v-limpar').addEventListener('click', () => {
+      mesSelecionado = '';
+      mesSelect.value = '';
+      render();
+      ctx.toast('Filtro de mês removido.');
     });
     render();
   }
@@ -90,6 +147,8 @@ const VehicleScreens = (function () {
       main.innerHTML = `${pageHeader('Veículo não encontrado')}<p><a class="link" href="#/veiculos">Voltar à lista</a></p>`;
       return;
     }
+    if (mesSelecionado && !Period.availableMonths(ctx.state).includes(mesSelecionado)) mesSelecionado = '';
+
     const operacional = Vehicles.operationalStatus(ctx.state, vehicle.id);
     const costs = Costs.vehicleCosts(ctx.state, vehicle.id);
     const maintenances = ctx.state.manutencoes.filter(m => m.veiculoId === vehicle.id).sort((a, b) => b.dataEntrada.localeCompare(a.dataEntrada));
@@ -98,9 +157,7 @@ const VehicleScreens = (function () {
     const kmOrigem = Vehicles.currentKmSource(ctx.state, vehicle.id);
     const ultimaTroca = Oil.lastChange(ctx.state, vehicle.id);
     const oleoInfo = ultimaTroca ? Oil.status(ctx.state, ultimaTroca) : null;
-    const abastecimentos = Fuel.list(ctx.state, { veiculoId: vehicle.id });
     const consumo = Fuel.consumption(ctx.state, vehicle.id);
-    const trocas = Oil.list(ctx.state, { veiculoId: vehicle.id });
 
     main.innerHTML = `
       ${pageHeader(`${vehicle.placa} – ${vehicle.marca}`, `Identificação ${vehicle.identificacao}`,
@@ -137,18 +194,17 @@ const VehicleScreens = (function () {
             : '<p class="muted">Nenhuma troca de óleo registrada. A situação desta informação está pendente de dados.</p>'}
         </div>
       </section>
-      <section class="kpi-grid">
-        ${kpi('Peças do almoxarifado', Utils.formatMoney(costs.pecasAlmoxarifado))}
-        ${kpi('Peças externas', Utils.formatMoney(costs.pecasExternas))}
-        ${kpi('Outras despesas', Utils.formatMoney(costs.outrasDespesas))}
-        ${kpi('Trocas de óleo', Utils.formatMoney(costs.trocasOleoProprias))}
-        ${kpi('Total de manutenção', Utils.formatMoney(costs.total))}
-        ${kpi('Combustível', Utils.formatMoney(costs.combustivel.total), `${Utils.formatQuantity(costs.combustivel.litros)} litros`)}
-        ${kpi('Consumo médio', consumo.media === null ? 'Sem dados' : `${String(consumo.media).replace('.', ',')} km/l`, consumo.suficiente ? 'Método de tanque cheio' : 'Dados insuficientes para calcular')}
-        ${kpi('Total geral', Utils.formatMoney(costs.totalGeral), 'Manutenção + combustível')}
+      <section class="card">
+        <div class="filter-bar">
+          ${monthFieldHtml(ctx.state, mesSelecionado)}
+          <div class="field-action"><button type="button" class="btn btn-ghost" id="v-limpar">Histórico completo (todas as datas)</button></div>
+        </div>
+        <p class="muted small" id="v-historico-info"></p>
+        <div id="v-historico-resumo"></div>
+        <div id="v-historico-tabela"></div>
       </section>
       <section class="card">
-        <h2>Histórico de manutenções</h2>
+        <h2>Histórico de manutenções (todas as datas)</h2>
         ${table(
           [{ label: 'Código' }, { label: 'Entrada' }, { label: 'Conclusão' }, { label: 'Situação' }, { label: 'Problema' }, { label: 'Custo total', align: 'right' }],
           maintenances.map(m => [
@@ -163,7 +219,7 @@ const VehicleScreens = (function () {
         )}
       </section>
       <section class="card">
-        <h2>Peças retiradas do almoxarifado</h2>
+        <h2>Peças retiradas do almoxarifado (todas as datas)</h2>
         ${table(
           [{ label: 'Data' }, { label: 'Peça' }, { label: 'Qtd.', align: 'right' }, { label: 'Valor unit.', align: 'right' },
             { label: 'Total', align: 'right' }, { label: 'Manutenção' }, { label: 'Responsável' }],
@@ -183,7 +239,7 @@ const VehicleScreens = (function () {
         )}
       </section>
       <section class="card">
-        <h2>Peças adquiridas fora do almoxarifado</h2>
+        <h2>Peças adquiridas fora do almoxarifado (todas as datas)</h2>
         ${table(
           [{ label: 'Data' }, { label: 'Descrição' }, { label: 'Qtd.', align: 'right' }, { label: 'Valor unit.', align: 'right' },
             { label: 'Total', align: 'right' }, { label: 'Manutenção' }, { label: 'Motivo' }],
@@ -200,7 +256,7 @@ const VehicleScreens = (function () {
         )}
       </section>
       <section class="card">
-        <h2>Outras despesas de manutenção</h2>
+        <h2>Outras despesas de manutenção (todas as datas)</h2>
         ${table(
           [{ label: 'Data' }, { label: 'Descrição' }, { label: 'Manutenção' }, { label: 'Valor', align: 'right' }],
           costs.despesas.map(d => [Utils.formatDate(d.data), esc(d.descricao), esc(d.manutencaoId), Utils.formatMoney(d.valor)]),
@@ -209,11 +265,11 @@ const VehicleScreens = (function () {
         <p class="totals">Total de manutenção: <strong>${Utils.formatMoney(costs.total)}</strong> · Combustível: <strong>${Utils.formatMoney(costs.combustivel.total)}</strong> · Total geral: <strong>${Utils.formatMoney(costs.totalGeral)}</strong>. Cada item é contado uma única vez.</p>
       </section>
       <section class="card">
-        <h2>Abastecimentos</h2>
+        <h2>Abastecimentos (todas as datas)</h2>
         ${table(
           [{ label: 'Data e hora' }, { label: 'Km', align: 'right' }, { label: 'Litros', align: 'right' }, { label: 'Preço/litro', align: 'right' },
             { label: 'Valor total', align: 'right' }, { label: 'Posto' }, { label: 'Responsável' }, { label: 'Tanque' }],
-          abastecimentos.map(a => [
+          Fuel.list(ctx.state, { veiculoId: vehicle.id }).map(a => [
             Utils.formatDateTime(a.dataHora),
             Utils.formatKm(a.quilometragem),
             Utils.formatQuantity(a.litros),
@@ -230,12 +286,12 @@ const VehicleScreens = (function () {
           : 'dados insuficientes para calcular o consumo.'}</p>
       </section>
       <section class="card">
-        <h2>Trocas de óleo</h2>
+        <h2>Trocas de óleo (todas as datas)</h2>
         ${table(
           [{ label: 'Data' }, { label: 'Km', align: 'right' }, { label: 'Óleo' }, { label: 'Litros', align: 'right' },
             { label: 'Intervalo km', align: 'right' }, { label: 'Intervalo meses', align: 'right' }, { label: 'Próxima (km)', align: 'right' },
             { label: 'Próxima (data)' }, { label: 'Situação' }, { label: 'Custo', align: 'right' }],
-          trocas.map(t => [
+          Oil.list(ctx.state, { veiculoId: vehicle.id }).map(t => [
             Utils.formatDate(t.data),
             Utils.formatKm(t.quilometragem),
             esc(t.especificacao),
@@ -251,6 +307,57 @@ const VehicleScreens = (function () {
         )}
         <p class="muted small">Custos com origem "Retirada do estoque" já estão contados nas peças do almoxarifado e não são somados novamente.</p>
       </section>`;
+
+    const mesSelect = main.querySelector('#mes');
+    const resumo = main.querySelector('#v-historico-resumo');
+    const tabela = main.querySelector('#v-historico-tabela');
+    const info = main.querySelector('#v-historico-info');
+
+    const renderHistorico = () => {
+      const period = periodFrom(mesSelect.value);
+      const r = Reports.vehiclePeriodSummary(ctx.state, vehicle.id, period);
+      const c = r.contagens;
+      info.textContent = period.anoMes
+        ? `Histórico de ${Period.monthLabel(period.anoMes)}: movimentações cujas datas de evento caem no mês. Os totais consideram apenas esse período.`
+        : 'Histórico completo, sem filtro de período.';
+
+      resumo.innerHTML = r.temRegistros
+        ? `<section class="kpi-grid">
+             ${kpi('Registros no período', String(r.eventos.length))}
+             ${kpi('Manutenções', String(c.manutencoes))}
+             ${kpi('Trocas de óleo', String(c.trocasOleo))}
+             ${kpi('Abastecimentos', String(c.abastecimentos))}
+             ${kpi('Peças do almoxarifado', String(c.retiradas))}
+             ${kpi('Manutenção (R$)', Utils.formatMoney(r.custos.total))}
+             ${kpi('Combustível (R$)', Utils.formatMoney(r.custos.combustivel.total), `${Utils.formatQuantity(r.custos.combustivel.litros)} litros`)}
+             ${kpi('Total no período', Utils.formatMoney(r.totalGeral))}
+           </section>`
+        : '<p class="muted">Nenhuma movimentação registrada para este veículo no período selecionado. O cadastro permanece ativo.</p>';
+
+      tabela.innerHTML = r.temRegistros
+        ? table(
+          [{ label: 'Data' }, { label: 'Tipo' }, { label: 'Descrição' }, { label: 'Situação' }, { label: 'Km', align: 'right' }, { label: 'Custo', align: 'right' }, { label: '' }],
+          r.eventos.map(e => [
+            Utils.formatDateTime(e.data),
+            esc(e.tipo),
+            esc(e.descricao),
+            esc(e.situacao),
+            e.quilometragem === null ? '—' : Utils.formatKm(e.quilometragem),
+            e.custoJaContado ? `${Utils.formatMoney(e.custo)} <span class="muted small">(já contado)</span>` : Utils.formatMoney(e.custo),
+            e.rota ? `<a class="link" href="${e.rota}">Abrir</a>` : '—',
+          ]),
+        )
+        : '';
+    };
+
+    mesSelect.addEventListener('change', () => { mesSelecionado = mesSelect.value; renderHistorico(); });
+    main.querySelector('#v-limpar').addEventListener('click', () => {
+      mesSelecionado = '';
+      mesSelect.value = '';
+      renderHistorico();
+      ctx.toast('Histórico completo exibido.');
+    });
+    renderHistorico();
   }
 
   return { list, form, detail };
