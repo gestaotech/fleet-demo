@@ -204,14 +204,23 @@ const WarehouseScreens = (function () {
               <option value="Zerado">Zeradas</option>
             </select>
           </label>
+          <div class="field field-action">
+            <button type="button" class="btn btn-ghost" id="stock-clear">Limpar pesquisa</button>
+          </div>
         </div>
+        <p class="hint" id="stock-summary"></p>
         <div id="stock-table"></div>
       </section>`;
 
     const renderTable = () => {
-      const term = main.querySelector('#stock-term').value;
+      const termInput = main.querySelector('#stock-term');
+      const term = termInput.value;
       const situacao = main.querySelector('#stock-situacao').value;
       const filtered = Warehouse.filterInventory(rows, { termo: term, situacao });
+      const filtrando = Boolean(Utils.normalizeText(term)) || situacao !== 'Todas';
+      main.querySelector('#stock-summary').textContent = filtrando
+        ? `Exibindo ${filtered.length} de ${rows.length} peças para o filtro atual.`
+        : `${rows.length} peças cadastradas.`;
       main.querySelector('#stock-table').innerHTML = table(
         [
           { label: 'Código' }, { label: 'Descrição' }, { label: 'Valor unitário', align: 'right' },
@@ -228,11 +237,17 @@ const WarehouseScreens = (function () {
           stockBadge(r),
           `<div class="row-actions"><a class="link" href="#/almoxarifado/estoque/${esc(r.id)}">Movimentações</a><a class="link" href="#/almoxarifado/estoque/${esc(r.id)}/editar">Editar</a></div>`,
         ]),
-        'Nenhuma peça corresponde ao filtro.',
+        filtrando ? 'Nenhuma peça corresponde à pesquisa ou aos filtros informados.' : 'Nenhuma peça cadastrada.',
       );
     };
     main.querySelector('#stock-term').addEventListener('input', renderTable);
     main.querySelector('#stock-situacao').addEventListener('change', renderTable);
+    main.querySelector('#stock-clear').addEventListener('click', () => {
+      main.querySelector('#stock-term').value = '';
+      main.querySelector('#stock-situacao').value = 'Todas';
+      main.querySelector('#stock-term').focus();
+      renderTable();
+    });
     renderTable();
   }
 

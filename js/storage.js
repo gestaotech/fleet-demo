@@ -2,6 +2,9 @@
  * Persistência local (LocalStorage) dos dados de demonstração.
  * Limitação: é armazenamento do próprio navegador, sem sincronização entre usuários.
  * Se o navegador bloquear o LocalStorage, os dados ficam apenas em memória até a recarga.
+ *
+ * Compatibilidade: dados salvos em versões anteriores (schemaVersion 1) são migrados
+ * sem perder registros. Estruturas desconhecidas ou corrompidas voltam ao conjunto original.
  */
 const Storage = (function () {
   const DATA_KEY = 'gestaotech.frota-demo.dados.v1';
@@ -20,32 +23,79 @@ const Storage = (function () {
     }
   }
 
-  function isValidState(data) {
-    return Boolean(data) && data.schemaVersion === DemoData.SCHEMA_VERSION &&
-      Array.isArray(data.usuarios) && Array.isArray(data.veiculos) && Array.isArray(data.pecas) &&
-      Array.isArray(data.movimentacoes) && Array.isArray(data.pecasExternas) &&
-      Array.isArray(data.manutencoes) && Array.isArray(data.despesas);
+  const COLLECTIONS = ['usuarios', 'veiculos', 'pecas', 'movimentacoes', 'pecasExternas', 'manutencoes', 'despesas'];
+
+  function hasCollections(data) {
+    return Boolean(data) && COLLECTIONS.every(key => Array.isArray(data[key]));
+  }
+
+  /* Migrações de estrutura, aplicadas em sequência. Retorna null quando não é possível migrar. */
+  function migrate(data) {
+    if (!hasCollections(data)) return null;
+    let changed = false;
+    const version = Number(data.schemaVersion) || 0;
+
+    if (version < 1) return null;
+
+    if (version < 2) {
+      /* v2: combustível, trocas de óleo, parâmetros e quilometragem de manutenção. */
+      data.abastecimentos = Array.isArray(data.abastecimentos) ? data.abastecimentos : [];
+      data.trocasOleo = Array.isArray(data.trocasOleo) ? data.trocasOleo : [];
+      data.configuracoes = { ...DemoData.defaultConfiguracoes(), ...(data.configuracoes || {}) };
+      data.manutencoes.forEach(m => {
+        if (!('quilometragem' in m)) m.quilometragem = null;
+      });
+      /* Libera o novo módulo apenas para administradores ativos, evitando bloquear a gestão. */
+      data.usuarios.forEach(u => {
+        const isAdmin = u.ativo === true && Array.isArray(u.permissoes) && u.permissoes.includes('admin');
+        if (isAdmin && !u.permissoes.includes('combustivel')) u.permissoes.push('combustivel');
+      });
+      data.schemaVersion = 2;
+      changed = true;
+    }
+
+    if (!Array.isArray(data.abastecimentos) || !Array.isArray(data.trocasOleo)) return null;
+    if (!data.configuracoes || typeof data.configuracoes !== 'object') {
+      data.configuracoes = DemoData.defaultConfiguracoes();
+      changed = true;
+    }
+    if (data.schemaVersion !== DemoData.SCHEMA_VERSION) {
+      data.schemaVersion = DemoData.SCHEMA_VERSION;
+      changed = true;
+    }
+    return { data, changed };
+  }
+
+  function readRaw() {
+    return hasLocalStorage() ? window.localStorage.getItem(DATA_KEY) : (memoryData ? JSON.stringify(memoryData) : null);
+  }
+
+  function writeRaw(serialized) {
+    if (hasLocalStorage()) {
+      window.localStorage.setItem(DATA_KEY, serialized);
+    } else {
+      memoryData = JSON.parse(serialized);
+    }
   }
 
   function load() {
-    let raw = null;
-    if (hasLocalStorage()) {
-      raw = window.localStorage.getItem(DATA_KEY);
-    } else {
-      raw = memoryData ? JSON.stringify(memoryData) : null;
-    }
+    const raw = readRaw();
     if (raw) {
       try {
-        const parsed = JSON.parse(raw);
-        if (isValidState(parsed)) return parsed;
+        const migrated = migrate(JSON.parse(raw));
+        if (migrated) {
+          if (migrated.changed) writeRaw(JSON.stringify(migrated.data));
+          return migrated.data;
+        }
       } catch (error) {
-        // Dados corrompidos: volta para os dados originais de demonstração.
+        /* Dados corrompidos: volta para os dados originais de demonstração. */
       }
     }
     return DemoData.createSeed();
   }
 
   function save(state) {
+    state.schemaVersion = DemoData.SCHEMA_VERSION;
     const serialized = JSON.stringify(state);
     if (hasLocalStorage()) {
       try {

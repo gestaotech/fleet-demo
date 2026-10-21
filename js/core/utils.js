@@ -73,6 +73,51 @@ const Utils = (function () {
     return /^\d+$/.test(t) ? Number(t) : NaN;
   }
 
+  /* Quantidades com até 3 casas (litros, por exemplo), aceitando vírgula ou ponto decimal. */
+  function parseDecimal(text) {
+    if (typeof text === 'number') return Number.isFinite(text) && text >= 0 ? round2(text) : NaN;
+    let t = String(text ?? '').trim().replace(/\s/g, '');
+    if (!t) return NaN;
+    if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+    if (!/^\d+(\.\d{1,3})?$/.test(t)) return NaN;
+    return Math.round(Number(t) * 1000) / 1000;
+  }
+
+  /* Soma meses a uma data ISO (AAAA-MM-DD), ajustando o dia ao fim do mês quando necessário. */
+  function addMonths(isoDate, months) {
+    if (!isValidDate(isoDate) || !Number.isInteger(months) || months <= 0) return null;
+    const [y, m, d] = isoDate.split('-').map(Number);
+    const targetMonth = m - 1 + months;
+    const targetYear = y + Math.floor(targetMonth / 12);
+    const monthIndex = ((targetMonth % 12) + 12) % 12;
+    const lastDay = new Date(Date.UTC(targetYear, monthIndex + 1, 0)).getUTCDate();
+    const day = Math.min(d, lastDay);
+    return `${targetYear}-${pad(monthIndex + 1)}-${pad(day)}`;
+  }
+
+  /* Diferença em dias inteiros entre duas datas ISO (b - a). */
+  function utcTime(isoDate) {
+    const [y, m, d] = isoDate.split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  }
+
+  function daysBetween(fromIso, toIso) {
+    if (!isValidDate(fromIso) || !isValidDate(toIso)) return null;
+    return Math.round((utcTime(toIso) - utcTime(fromIso)) / 86400000);
+  }
+
+  const quantityFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 });
+  const kmFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+
+  function formatQuantity(value) {
+    return quantityFormatter.format(Number(value) || 0);
+  }
+
+  function formatKm(value) {
+    if (value === null || value === undefined || value === '') return '—';
+    return `${kmFormatter.format(Number(value))} km`;
+  }
+
   function nextId(prefix, items, width = 3) {
     const pattern = new RegExp(`^${prefix}-(\\d+)$`);
     const max = items.reduce((acc, item) => {
@@ -84,6 +129,17 @@ const Utils = (function () {
 
   function normalizeText(value) {
     return String(value ?? '').trim().replace(/\s+/g, ' ');
+  }
+
+  /*
+   * Texto para comparação de pesquisa: sem acentos, minúsculo e sem espaços nas pontas.
+   * Assim "oleo" encontra "Óleo" e "filtro de ar" é encontrado por "FILTRO".
+   */
+  function searchKey(value) {
+    return normalizeText(value)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
   }
 
   function normalizePlate(value) {
@@ -113,8 +169,9 @@ const Utils = (function () {
 
   return {
     todayIso, nowIso, isValidDate, isValidDateTime, round2,
-    formatMoney, formatDate, formatDateTime,
-    parseMoney, parseInteger, nextId,
-    normalizeText, normalizePlate, sameText, inPeriod, sum, csvNumber,
+    formatMoney, formatDate, formatDateTime, formatQuantity, formatKm,
+    parseMoney, parseInteger, parseDecimal, nextId,
+    addMonths, daysBetween,
+    normalizeText, normalizePlate, sameText, searchKey, inPeriod, sum, csvNumber,
   };
 })();

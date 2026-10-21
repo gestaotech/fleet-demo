@@ -8,6 +8,7 @@ const App = (function () {
     adminUsers: AdminScreens.users,
     adminUserForm: AdminScreens.userForm,
     adminData: AdminScreens.dataPage,
+    adminSettings: AdminScreens.settings,
     warehouseStock: WarehouseScreens.stock,
     partForm: WarehouseScreens.partForm,
     entryForm: WarehouseScreens.entryForm,
@@ -20,11 +21,17 @@ const App = (function () {
     maintenanceList: MaintenanceScreens.list,
     maintenanceForm: MaintenanceScreens.form,
     maintenanceDetail: MaintenanceScreens.detail,
+    oilList: OilScreens.list,
+    oilForm: OilScreens.form,
+    fuelList: FuelScreens.list,
+    fuelForm: FuelScreens.form,
     reportGeneral: ReportScreens.general,
     reportVehicles: ReportScreens.vehicles,
     reportWarehouse: ReportScreens.warehouse,
     reportWithdrawals: ReportScreens.withdrawals,
     reportMaintenance: ReportScreens.maintenances,
+    reportFuel: ReportScreens.fuel,
+    reportOil: ReportScreens.oil,
     reportFull: ReportScreens.full,
   };
 
@@ -33,6 +40,7 @@ const App = (function () {
     admin: [
       { label: 'Visão geral', href: '#/admin' },
       { label: 'Usuários e permissões', href: '#/admin/usuarios' },
+      { label: 'Parâmetros', href: '#/admin/parametros' },
       { label: 'Dados da demonstração', href: '#/admin/dados' },
     ],
     almoxarifado: [
@@ -47,16 +55,23 @@ const App = (function () {
     manutencao: [
       { label: 'Manutenções', href: '#/manutencao' },
       { label: 'Nova manutenção', href: '#/manutencao/nova' },
+      { label: 'Trocas de óleo', href: '#/manutencao/oleo' },
+      { label: 'Nova troca de óleo', href: '#/manutencao/oleo/nova' },
+    ],
+    combustivel: [
+      { label: 'Abastecimentos', href: '#/combustivel' },
+      { label: 'Novo abastecimento', href: '#/combustivel/novo' },
     ],
     relatorios: [],
   };
 
   const HOME_CARDS = [
-    { id: 'admin', numero: '1', titulo: 'Administrador', texto: 'Usuários, permissões de acesso e situação da frota.' },
-    { id: 'almoxarifado', numero: '2', titulo: 'Almoxarifado', texto: 'Estoque de peças, entradas, retiradas e peças externas.' },
-    { id: 'veiculos', numero: '3', titulo: 'Veículos', texto: 'Cadastro da frota e relatório individual de cada veículo.' },
-    { id: 'manutencao', numero: '4', titulo: 'Manutenção de veículos', texto: 'Abertura, acompanhamento e conclusão das manutenções.' },
-    { id: 'relatorios', numero: '5', titulo: 'Relatórios', texto: 'Relatórios gerais, de veículos, almoxarifado, retiradas e manutenções.' },
+    { id: 'admin', numero: '1', titulo: 'Administrador', texto: 'Usuários, permissões de acesso, parâmetros e situação da frota.' },
+    { id: 'almoxarifado', numero: '2', titulo: 'Almoxarifado', texto: 'Estoque de peças com pesquisa, entradas, retiradas e peças externas.' },
+    { id: 'veiculos', numero: '3', titulo: 'Veículos', texto: 'Cadastro da frota e histórico integrado de cada veículo.' },
+    { id: 'manutencao', numero: '4', titulo: 'Manutenção de veículos', texto: 'Manutenções com quilometragem e controle de trocas de óleo.' },
+    { id: 'combustivel', numero: '5', titulo: 'Combustível', texto: 'Abastecimentos, preço por litro, gastos e consumo médio.' },
+    { id: 'relatorios', numero: '6', titulo: 'Relatórios', texto: 'Oito relatórios, incluindo combustível e trocas de óleo.' },
   ];
 
   const ctx = {

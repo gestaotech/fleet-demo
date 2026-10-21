@@ -19,6 +19,38 @@ const Vehicles = (function () {
     return Maintenance.hasOpen(state, veiculoId) ? 'Em manutenção' : 'Disponível';
   }
 
+  /*
+   * Quilometragem atual conhecida do veículo: a maior quilometragem registrada em
+   * abastecimentos, trocas de óleo e manutenções. Não existe hodômetro próprio do veículo,
+   * por isso o valor é derivado dos registros e pode ficar desatualizado.
+   */
+  function currentKm(state, veiculoId) {
+    const valores = [];
+    const abastecimentos = state.abastecimentos || [];
+    const trocas = state.trocasOleo || [];
+    const manutencoes = state.manutencoes || [];
+    abastecimentos.forEach(a => { if (a.veiculoId === veiculoId && Number.isInteger(a.quilometragem)) valores.push(a.quilometragem); });
+    trocas.forEach(t => { if (t.veiculoId === veiculoId && Number.isInteger(t.quilometragem)) valores.push(t.quilometragem); });
+    manutencoes.forEach(m => { if (m.veiculoId === veiculoId && Number.isInteger(m.quilometragem)) valores.push(m.quilometragem); });
+    return valores.length ? Math.max(...valores) : null;
+  }
+
+  /* Data do registro mais recente que informou quilometragem (para exibir a origem do dado). */
+  function currentKmSource(state, veiculoId) {
+    const candidatos = [];
+    (state.abastecimentos || []).forEach(a => {
+      if (a.veiculoId === veiculoId && Number.isInteger(a.quilometragem)) candidatos.push({ km: a.quilometragem, data: a.dataHora, origem: 'Abastecimento' });
+    });
+    (state.trocasOleo || []).forEach(t => {
+      if (t.veiculoId === veiculoId && Number.isInteger(t.quilometragem)) candidatos.push({ km: t.quilometragem, data: `${t.data}T00:00`, origem: 'Troca de óleo' });
+    });
+    (state.manutencoes || []).forEach(m => {
+      if (m.veiculoId === veiculoId && Number.isInteger(m.quilometragem)) candidatos.push({ km: m.quilometragem, data: m.dataEntrada, origem: 'Manutenção' });
+    });
+    if (!candidatos.length) return null;
+    return candidatos.reduce((maior, atual) => (atual.km > maior.km ? atual : maior));
+  }
+
   function validate(state, data, editingId) {
     const errors = [];
     const marca = Utils.normalizeText(data.marca);
@@ -69,10 +101,10 @@ const Vehicles = (function () {
 
   /* filtros: { termo, situacao: 'Todos'|'Ativo'|'Inativo', operacional: 'Todos'|'Disponível'|'Em manutenção' } */
   function filter(state, filters = {}) {
-    const termo = Utils.normalizeText(filters.termo).toLowerCase();
+    const termo = Utils.searchKey(filters.termo);
     return state.veiculos.filter(v => {
       if (termo) {
-        const haystack = `${v.placa} ${v.marca} ${v.identificacao}`.toLowerCase();
+        const haystack = Utils.searchKey(`${v.placa} ${v.marca} ${v.identificacao}`);
         if (!haystack.includes(termo)) return false;
       }
       if (filters.situacao && filters.situacao !== 'Todos' && v.situacao !== filters.situacao) return false;
@@ -81,5 +113,5 @@ const Vehicles = (function () {
     });
   }
 
-  return { SITUACOES, find, isActive, operationalStatus, validate, create, update, summary, filter };
+  return { SITUACOES, find, isActive, operationalStatus, currentKm, currentKmSource, validate, create, update, summary, filter };
 })();

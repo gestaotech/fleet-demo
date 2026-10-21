@@ -22,10 +22,21 @@ test('permissões por módulo seguem a configuração de cada usuário', () => {
   const oficina = usuario('oficina');
   assert.equal(A().canAccess(oficina, 'manutencao'), true);
   assert.equal(A().canAccess(oficina, 'veiculos'), true);
+  assert.equal(A().canAccess(oficina, 'combustivel'), true);
   assert.equal(A().canAccess(oficina, 'almoxarifado'), false);
   assert.equal(A().canAccess(oficina, 'admin'), false);
   assert.equal(A().canAccess(null, 'veiculos'), false);
   assert.equal(A().canAccess({ ...oficina, ativo: false }, 'manutencao'), false);
+});
+
+test('o módulo Combustível existe na lista de módulos e é liberável a um usuário', () => {
+  assert.equal(A().MODULES.length, 6);
+  assert.deepEqual([...A().MODULE_IDS], ['admin', 'almoxarifado', 'veiculos', 'manutencao', 'combustivel', 'relatorios']);
+  const s = app.fresh();
+  const criado = A().saveUser(s, { nome: 'Operador de Pátio', cargo: 'Operador', login: 'patio', senha: 'segredo1', ativo: true, permissoes: ['combustivel'] });
+  assert.equal(criado.ok, true);
+  assert.deepEqual([...criado.value.permissoes], ['combustivel']);
+  assert.equal(A().canAccess(criado.value, 'combustivel'), true);
 });
 
 test('usuário: validações de cadastro e senha obrigatória apenas na criação', () => {
@@ -76,6 +87,25 @@ test('roteamento: subpáginas com parâmetros e precedência de rotas fixas', ()
   assert.equal(router.resolve('#/veiculos/VEI-001/editar', usuario('oficina')).page, 'vehicleForm');
   assert.equal(router.resolve('#/admin/usuarios/USR-002', admin).page, 'adminUserForm');
   assert.equal(router.resolve('#/admin/usuarios/novo', admin).page, 'adminUserForm');
+  assert.equal(router.resolve('#/admin/parametros', admin).page, 'adminSettings');
+});
+
+test('roteamento: combustível, trocas de óleo e novos relatórios', () => {
+  const router = RT();
+  const admin = usuario('admin');
+  const oficina = usuario('oficina');
+  assert.equal(router.resolve('#/combustivel', admin).page, 'fuelList');
+  assert.equal(router.resolve('#/combustivel/novo', admin).page, 'fuelForm');
+  const edicao = router.resolve('#/combustivel/ABS-0001/editar', admin);
+  assert.equal(edicao.page, 'fuelForm');
+  assert.equal(edicao.params.id, 'ABS-0001');
+  /* A rota fixa /manutencao/oleo tem precedência sobre /manutencao/:id. */
+  assert.equal(router.resolve('#/manutencao/oleo', oficina).page, 'oilList');
+  assert.equal(router.resolve('#/manutencao/oleo/nova', oficina).page, 'oilForm');
+  assert.equal(router.resolve('#/manutencao/oleo/OLE-0001/editar', oficina).params.id, 'OLE-0001');
+  assert.equal(router.resolve('#/relatorios/combustivel', admin).page, 'reportFuel');
+  assert.equal(router.resolve('#/relatorios/trocas-oleo', admin).page, 'reportOil');
+  assert.equal(router.resolve('#/combustivel', usuario('almoxarifado')).kind, 'denied', 'sem permissão de combustível');
 });
 
 test('roteamento: redirecionamentos e página inexistente', () => {

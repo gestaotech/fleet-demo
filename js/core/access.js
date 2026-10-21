@@ -9,7 +9,8 @@ const Access = (function () {
     { id: 'admin', nome: 'Administrador', descricao: 'Usuários, permissões e situação da frota' },
     { id: 'almoxarifado', nome: 'Almoxarifado', descricao: 'Estoque, entradas, retiradas e peças externas' },
     { id: 'veiculos', nome: 'Veículos', descricao: 'Cadastro da frota e histórico por veículo' },
-    { id: 'manutencao', nome: 'Manutenção', descricao: 'Ordens de manutenção e custos' },
+    { id: 'manutencao', nome: 'Manutenção', descricao: 'Ordens de manutenção, trocas de óleo e custos' },
+    { id: 'combustivel', nome: 'Combustível', descricao: 'Abastecimentos, consumo médio e gastos' },
     { id: 'relatorios', nome: 'Relatórios', descricao: 'Consultas e relatórios consolidados' },
   ];
   const MODULE_IDS = MODULES.map(m => m.id);

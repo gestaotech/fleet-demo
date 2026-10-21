@@ -4,16 +4,22 @@
  * Placas no padrão "DEM" e nomes de usuários são inventados para a apresentação.
  */
 const DemoData = (function () {
-  const SCHEMA_VERSION = 1;
+  const SCHEMA_VERSION = 2;
+
+  /* Parâmetros configuráveis da demonstração (aplicados aos alertas de troca de óleo). */
+  function defaultConfiguracoes() {
+    return { alertaTrocaOleoKm: 1000, alertaTrocaOleoDias: 30 };
+  }
 
   function createSeed() {
     return {
       schemaVersion: SCHEMA_VERSION,
+      configuracoes: defaultConfiguracoes(),
       usuarios: [
-        { id: 'USR-001', nome: 'Administrador da Demonstração', cargo: 'Administrador', login: 'admin', senha: 'demo123', ativo: true, permissoes: ['admin', 'almoxarifado', 'veiculos', 'manutencao', 'relatorios'] },
+        { id: 'USR-001', nome: 'Administrador da Demonstração', cargo: 'Administrador', login: 'admin', senha: 'demo123', ativo: true, permissoes: ['admin', 'almoxarifado', 'veiculos', 'manutencao', 'combustivel', 'relatorios'] },
         { id: 'USR-002', nome: 'Rogério Santana', cargo: 'Almoxarife', login: 'almoxarifado', senha: 'demo123', ativo: true, permissoes: ['almoxarifado'] },
-        { id: 'USR-003', nome: 'Márcia Lopes', cargo: 'Supervisora de Oficina', login: 'oficina', senha: 'demo123', ativo: true, permissoes: ['veiculos', 'manutencao'] },
-        { id: 'USR-004', nome: 'Paulo Ferreira', cargo: 'Gerente de Operações', login: 'gerencia', senha: 'demo123', ativo: true, permissoes: ['veiculos', 'relatorios'] },
+        { id: 'USR-003', nome: 'Márcia Lopes', cargo: 'Supervisora de Oficina', login: 'oficina', senha: 'demo123', ativo: true, permissoes: ['veiculos', 'manutencao', 'combustivel'] },
+        { id: 'USR-004', nome: 'Paulo Ferreira', cargo: 'Gerente de Operações', login: 'gerencia', senha: 'demo123', ativo: true, permissoes: ['veiculos', 'combustivel', 'relatorios'] },
         { id: 'USR-005', nome: 'Juliana Prado', cargo: 'Auxiliar Administrativo', login: 'juliana', senha: 'demo123', ativo: false, permissoes: ['almoxarifado'] },
       ],
       veiculos: [
@@ -71,7 +77,7 @@ const DemoData = (function () {
       ],
       manutencoes: [
         {
-          id: 'MNT-0001', veiculoId: 'VEI-002', dataEntrada: '2026-08-05T08:00', dataConclusao: '2026-08-07T17:00', status: 'Concluída',
+          id: 'MNT-0001', veiculoId: 'VEI-002', dataEntrada: '2026-08-05T08:00', quilometragem: 61000, dataConclusao: '2026-08-07T17:00', status: 'Concluída',
           descricaoProblema: 'Revisão de 10 mil km: troca de óleo e filtros.', observacoes: 'Revisão programada.', responsavel: 'Márcia Lopes',
           historico: [
             { data: '2026-08-05T08:00', texto: 'Manutenção aberta por Márcia Lopes.' },
@@ -79,7 +85,7 @@ const DemoData = (function () {
           ],
         },
         {
-          id: 'MNT-0002', veiculoId: 'VEI-004', dataEntrada: '2026-08-12T09:30', dataConclusao: '2026-08-12T16:00', status: 'Concluída',
+          id: 'MNT-0002', veiculoId: 'VEI-004', dataEntrada: '2026-08-12T09:30', quilometragem: 30000, dataConclusao: '2026-08-12T16:00', status: 'Concluída',
           descricaoProblema: 'Ruído ao frear e pastilhas desgastadas.', observacoes: '', responsavel: 'Márcia Lopes',
           historico: [
             { data: '2026-08-12T09:30', texto: 'Manutenção aberta por Márcia Lopes.' },
@@ -87,7 +93,7 @@ const DemoData = (function () {
           ],
         },
         {
-          id: 'MNT-0003', veiculoId: 'VEI-005', dataEntrada: '2026-09-01T07:45', dataConclusao: '2026-09-04T11:20', status: 'Concluída',
+          id: 'MNT-0003', veiculoId: 'VEI-005', dataEntrada: '2026-09-01T07:45', quilometragem: 119500, dataConclusao: '2026-09-04T11:20', status: 'Concluída',
           descricaoProblema: 'Veículo não dá partida; bateria descarregada.', observacoes: 'Verificar alternador na próxima revisão.', responsavel: 'Márcia Lopes',
           historico: [
             { data: '2026-09-01T07:45', texto: 'Manutenção aberta por Márcia Lopes.' },
@@ -95,7 +101,7 @@ const DemoData = (function () {
           ],
         },
         {
-          id: 'MNT-0004', veiculoId: 'VEI-006', dataEntrada: '2026-09-15T08:10', dataConclusao: '2026-09-16T15:00', status: 'Concluída',
+          id: 'MNT-0004', veiculoId: 'VEI-006', dataEntrada: '2026-09-15T08:10', quilometragem: 150700, dataConclusao: '2026-09-16T15:00', status: 'Concluída',
           descricaoProblema: 'Vazamento de óleo e correia do alternador desgastada.', observacoes: '', responsavel: 'Márcia Lopes',
           historico: [
             { data: '2026-09-15T08:10', texto: 'Manutenção aberta por Márcia Lopes.' },
@@ -103,14 +109,14 @@ const DemoData = (function () {
           ],
         },
         {
-          id: 'MNT-0005', veiculoId: 'VEI-001', dataEntrada: '2026-10-06T08:00', dataConclusao: null, status: 'Aberta',
+          id: 'MNT-0005', veiculoId: 'VEI-001', dataEntrada: '2026-10-06T08:00', quilometragem: 50100, dataConclusao: null, status: 'Aberta',
           descricaoProblema: 'Barulho no motor ao acelerar.', observacoes: 'Aguardando diagnóstico completo.', responsavel: 'Márcia Lopes',
           historico: [
             { data: '2026-10-06T08:00', texto: 'Manutenção aberta por Márcia Lopes.' },
           ],
         },
         {
-          id: 'MNT-0006', veiculoId: 'VEI-003', dataEntrada: '2026-10-08T13:00', dataConclusao: null, status: 'Em andamento',
+          id: 'MNT-0006', veiculoId: 'VEI-003', dataEntrada: '2026-10-08T13:00', quilometragem: 88930, dataConclusao: null, status: 'Em andamento',
           descricaoProblema: 'Desgaste irregular no pneu dianteiro esquerdo e lâmpadas de farol queimadas.', observacoes: '', responsavel: 'Márcia Lopes',
           historico: [
             { data: '2026-10-08T13:00', texto: 'Manutenção aberta por Márcia Lopes.' },
@@ -125,8 +131,40 @@ const DemoData = (function () {
         { id: 'DES-004', manutencaoId: 'MNT-0004', descricao: 'Serviço de alinhamento', valor: 90.00, data: '2026-09-16' },
         { id: 'DES-005', manutencaoId: 'MNT-0005', descricao: 'Diagnóstico do motor', valor: 120.00, data: '2026-10-06' },
       ],
+      /* Abastecimentos fictícios. tanqueCheio = true marca os ciclos válidos para cálculo de consumo. */
+      abastecimentos: [
+        { id: 'ABS-0001', veiculoId: 'VEI-001', dataHora: '2026-08-03T07:20', quilometragem: 48000, litros: 180, valorTotal: 1080.00, precoLitro: 6.000, posto: 'Posto Rota Sul', responsavel: 'Paulo Ferreira', observacao: 'Tanque cheio', tanqueCheio: true },
+        { id: 'ABS-0002', veiculoId: 'VEI-001', dataHora: '2026-08-18T18:40', quilometragem: 48540, litros: 150, valorTotal: 900.00, precoLitro: 6.000, posto: 'Posto Rota Sul', responsavel: 'Paulo Ferreira', observacao: '', tanqueCheio: true },
+        { id: 'ABS-0003', veiculoId: 'VEI-001', dataHora: '2026-09-02T06:50', quilometragem: 49095, litros: 155, valorTotal: 945.50, precoLitro: 6.100, posto: 'Posto Trevo', responsavel: 'Paulo Ferreira', observacao: '', tanqueCheio: true },
+        { id: 'ABS-0004', veiculoId: 'VEI-001', dataHora: '2026-09-20T19:10', quilometragem: 49640, litros: 160, valorTotal: 992.00, precoLitro: 6.200, posto: 'Posto Rota Sul', responsavel: 'Márcia Lopes', observacao: '', tanqueCheio: true },
+        { id: 'ABS-0005', veiculoId: 'VEI-001', dataHora: '2026-10-05T08:30', quilometragem: 50180, litros: 148.5, valorTotal: 920.70, precoLitro: 6.200, posto: 'Posto Rota Sul', responsavel: 'Paulo Ferreira', observacao: 'Abastecimento parcial', tanqueCheio: false },
+        { id: 'ABS-0006', veiculoId: 'VEI-002', dataHora: '2026-08-10T07:00', quilometragem: 61200, litros: 200, valorTotal: 1180.00, precoLitro: 5.900, posto: 'Posto Bandeirantes', responsavel: 'Paulo Ferreira', observacao: '', tanqueCheio: true },
+        { id: 'ABS-0007', veiculoId: 'VEI-002', dataHora: '2026-08-27T17:30', quilometragem: 61900, litros: 195, valorTotal: 1150.50, precoLitro: 5.900, posto: 'Posto Bandeirantes', responsavel: 'Paulo Ferreira', observacao: '', tanqueCheio: true },
+        { id: 'ABS-0008', veiculoId: 'VEI-002', dataHora: '2026-09-14T07:15', quilometragem: 62650, litros: 210, valorTotal: 1239.00, precoLitro: 5.900, posto: 'Posto Rota Sul', responsavel: 'Márcia Lopes', observacao: '', tanqueCheio: true },
+        { id: 'ABS-0009', veiculoId: 'VEI-002', dataHora: '2026-10-03T18:00', quilometragem: 63380, litros: 198, valorTotal: 1168.20, precoLitro: 5.900, posto: 'Posto Bandeirantes', responsavel: 'Paulo Ferreira', observacao: '', tanqueCheio: true },
+        { id: 'ABS-0010', veiculoId: 'VEI-003', dataHora: '2026-09-05T07:40', quilometragem: 88000, litros: 250, valorTotal: 1500.00, precoLitro: 6.000, posto: 'Posto Rodovia', responsavel: 'Paulo Ferreira', observacao: '', tanqueCheio: true },
+        { id: 'ABS-0011', veiculoId: 'VEI-003', dataHora: '2026-09-22T19:20', quilometragem: 88950, litros: 260, valorTotal: 1560.00, precoLitro: 6.000, posto: 'Posto Rodovia', responsavel: 'Paulo Ferreira', observacao: '', tanqueCheio: true },
+        { id: 'ABS-0012', veiculoId: 'VEI-004', dataHora: '2026-10-01T08:10', quilometragem: 30500, litros: 90, valorTotal: 549.00, precoLitro: 6.100, posto: 'Posto Central', responsavel: 'Juliana Prado', observacao: '', tanqueCheio: true },
+        { id: 'ABS-0013', veiculoId: 'VEI-004', dataHora: '2026-10-10T09:05', quilometragem: 31040, litros: 85, valorTotal: 518.50, precoLitro: 6.100, posto: 'Posto Central', responsavel: 'Juliana Prado', observacao: '', tanqueCheio: true },
+        { id: 'ABS-0014', veiculoId: 'VEI-005', dataHora: '2026-09-30T07:30', quilometragem: 120000, litros: 220, valorTotal: 1320.00, precoLitro: 6.000, posto: 'Posto Rodovia', responsavel: 'Paulo Ferreira', observacao: 'Apenas um abastecimento registrado.', tanqueCheio: true },
+        { id: 'ABS-0015', veiculoId: 'VEI-006', dataHora: '2026-08-05T07:25', quilometragem: 150300, litros: 190, valorTotal: 1121.00, precoLitro: 5.900, posto: 'Posto Trevo', responsavel: 'Márcia Lopes', observacao: '', tanqueCheio: true },
+        { id: 'ABS-0016', veiculoId: 'VEI-006', dataHora: '2026-08-22T18:15', quilometragem: 150980, litros: 185, valorTotal: 1091.50, precoLitro: 5.900, posto: 'Posto Trevo', responsavel: 'Márcia Lopes', observacao: '', tanqueCheio: true },
+      ],
+      /*
+       * Trocas de óleo fictícias.
+       * pecaId/movimentacaoId ficam nulos quando o custo é próprio (valorUnitario x quantidade).
+       * Quando o óleo vem do almoxarifado, a troca aponta para a movimentação e não soma custo próprio.
+       */
+      trocasOleo: [
+        { id: 'OLE-0001', veiculoId: 'VEI-001', data: '2026-07-10', quilometragem: 46000, especificacao: '15W40 mineral (API CI-4)', quantidade: 28, valorUnitario: 32.40, responsavel: 'Márcia Lopes', observacao: 'Uso severo; intervalo reduzido.', intervaloKm: 5000, intervaloMeses: 6, manutencaoId: null, pecaId: null, movimentacaoId: null },
+        { id: 'OLE-0002', veiculoId: 'VEI-002', data: '2026-05-12', quilometragem: 58000, especificacao: '15W40 mineral (API CI-4)', quantidade: 30, valorUnitario: 31.50, responsavel: 'Márcia Lopes', observacao: 'Intervalo reduzido por uso severo.', intervaloKm: 5000, intervaloMeses: 6, manutencaoId: null, pecaId: null, movimentacaoId: null },
+        { id: 'OLE-0003', veiculoId: 'VEI-004', data: '2026-02-20', quilometragem: 26000, especificacao: '10W30 sintético', quantidade: 12, valorUnitario: 32.40, responsavel: 'Márcia Lopes', observacao: '', intervaloKm: 10000, intervaloMeses: 6, manutencaoId: null, pecaId: null, movimentacaoId: null },
+        { id: 'OLE-0004', veiculoId: 'VEI-003', data: '2026-09-20', quilometragem: 88900, especificacao: '15W40 semissintético', quantidade: 32, valorUnitario: 32.40, responsavel: 'Márcia Lopes', observacao: '', intervaloKm: 8000, intervaloMeses: 12, manutencaoId: null, pecaId: null, movimentacaoId: null },
+        { id: 'OLE-0005', veiculoId: 'VEI-005', data: '2026-09-01', quilometragem: 120000, especificacao: '15W40 mineral', quantidade: 8, valorUnitario: 32.40, responsavel: 'Márcia Lopes', observacao: 'Intervalo não configurado.', intervaloKm: null, intervaloMeses: null, manutencaoId: null, pecaId: null, movimentacaoId: null },
+        { id: 'OLE-0006', veiculoId: 'VEI-006', data: '2026-09-15', quilometragem: 150850, especificacao: '15W40 mineral (API CI-4)', quantidade: 8, valorUnitario: 31.50, responsavel: 'Márcia Lopes', observacao: 'Troca feita durante a manutenção MNT-0004.', intervaloKm: 8000, intervaloMeses: 12, manutencaoId: 'MNT-0004', pecaId: null, movimentacaoId: null },
+      ],
     };
   }
 
-  return { SCHEMA_VERSION, createSeed };
+  return { SCHEMA_VERSION, defaultConfiguracoes, createSeed };
 })();

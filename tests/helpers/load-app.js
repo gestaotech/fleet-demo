@@ -16,6 +16,8 @@ const FILES = [
   'js/core/vehicles.js',
   'js/core/maintenance.js',
   'js/core/warehouse.js',
+  'js/core/fuel.js',
+  'js/core/oil.js',
   'js/core/costs.js',
   'js/core/reports.js',
   'js/router.js',

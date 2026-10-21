@@ -107,8 +107,8 @@ test('peça externa e despesa na manutenção aparecem nos custos sem duplicidad
 test('custos de referência da demonstração (conferidos manualmente)', () => {
   const s = app.fresh();
   assert.equal(C().maintenanceCosts(s, 'MNT-0001').total, 583, 'peças 403 + mão de obra 180');
-  assert.equal(C().vehicleCosts(s, 'VEI-002').total, 673, 'retiradas 104 + 299 + 90 (direta) + despesa 180');
-  assert.equal(C().vehicleCosts(s, 'VEI-006').total, 696, 'peças 109 + 252 + externa 245 + despesa 90');
+  assert.equal(C().vehicleCosts(s, 'VEI-002').total, 1618, 'retiradas 104 + 299 + 90 (direta) + despesa 180 + troca de óleo própria 945');
+  assert.equal(C().vehicleCosts(s, 'VEI-006').total, 948, 'peças 109 + 252 + externa 245 + despesa 90 + troca de óleo própria 252');
 });
 
 test('soma dos custos por veículo bate com o total da frota (nenhum custo contado duas vezes)', () => {

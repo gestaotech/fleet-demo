@@ -29,18 +29,24 @@ const Maintenance = (function () {
     const descricaoProblema = Utils.normalizeText(data.descricaoProblema);
     const responsavel = Utils.normalizeText(data.responsavel);
     const dataEntrada = data.dataEntrada;
+    const quilometragem = data.quilometragem === '' || data.quilometragem === undefined || data.quilometragem === null
+      ? null : Utils.parseInteger(data.quilometragem);
 
     if (!veiculo) errors.push('Selecione o veículo.');
     else if (!Vehicles.isActive(veiculo)) errors.push('Veículo inativo não pode receber nova manutenção.');
     if (!Utils.isValidDateTime(dataEntrada)) errors.push('Informe a data e a hora de entrada.');
     if (!descricaoProblema) errors.push('Descreva o problema informado.');
     if (!responsavel) errors.push('Informe o responsável pelo registro.');
+    if (quilometragem !== null && (!Number.isInteger(quilometragem) || quilometragem < 0)) {
+      errors.push('A quilometragem de entrada deve ser um número inteiro maior ou igual a zero.');
+    }
     if (errors.length) return { ok: false, errors };
 
     const maintenance = {
       id: Utils.nextId('MNT', state.manutencoes, 4),
       veiculoId: veiculo.id,
       dataEntrada,
+      quilometragem,
       dataConclusao: null,
       status: 'Aberta',
       descricaoProblema,
@@ -48,6 +54,9 @@ const Maintenance = (function () {
       responsavel,
       historico: [event(`Manutenção aberta por ${responsavel}.`, dataEntrada)],
     };
+    if (quilometragem !== null) {
+      maintenance.historico.push(event(`Quilometragem de entrada registrada: ${Utils.formatKm(quilometragem)}.`, dataEntrada));
+    }
     state.manutencoes.push(maintenance);
     return { ok: true, value: maintenance };
   }

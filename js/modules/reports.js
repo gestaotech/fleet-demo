@@ -8,6 +8,8 @@ const ReportScreens = (function () {
     { id: 'almoxarifado', label: 'Relatório do almoxarifado', route: '#/relatorios/almoxarifado' },
     { id: 'retiradas', label: 'Relatório de retiradas', route: '#/relatorios/retiradas' },
     { id: 'manutencoes', label: 'Relatório de manutenções', route: '#/relatorios/manutencoes' },
+    { id: 'combustivel', label: 'Relatório de combustível', route: '#/relatorios/combustivel' },
+    { id: 'trocas', label: 'Relatório de trocas de óleo', route: '#/relatorios/trocas-oleo' },
     { id: 'completo', label: 'Relatório completo', route: '#/relatorios/completo' },
   ];
 
@@ -62,7 +64,7 @@ const ReportScreens = (function () {
       results.innerHTML = `
         <div class="report-actions">
           <button type="button" class="btn btn-ghost" data-export>Exportar CSV</button>
-          ${active === 'completo' ? '<button type="button" class="btn btn-ghost" data-print>Imprimir</button>' : ''}
+          <button type="button" class="btn btn-ghost" data-print>Imprimir</button>
         </div>
         ${current.html}`;
     };
@@ -88,14 +90,21 @@ const ReportScreens = (function () {
           ['Total de veículos', r.total], ['Veículos ativos', r.ativos], ['Veículos inativos', r.inativos],
           ['Veículos em manutenção', r.emManutencao], ['Manutenções abertas (Aberta ou Em andamento)', r.manutencoesAbertas],
           ['Manutenções com entrada no período', r.manutencoesNoPeriodo],
+          ['Trocas de óleo registradas', r.trocasOleo], ['Trocas de óleo vencidas', r.trocasOleoVencidas],
+          ['Abastecimentos no período', r.abastecimentosNoPeriodo],
           ['Peças do almoxarifado (R$)', r.custos.pecasAlmoxarifado], ['Peças externas (R$)', r.custos.pecasExternas],
-          ['Outras despesas (R$)', r.custos.outrasDespesas], ['Gastos acumulados com manutenção (R$)', r.gastos],
+          ['Outras despesas (R$)', r.custos.outrasDespesas], ['Trocas de óleo com custo próprio (R$)', r.custos.trocasOleoProprias],
+          ['Gastos acumulados com manutenção (R$)', r.gastos], ['Gasto com combustível (R$)', r.custos.combustivel.total],
+          ['Total geral (R$)', r.custos.totalGeral],
         ];
         return {
           html: `<section class="kpi-grid">
                    ${kpi('Total de veículos', r.total)}${kpi('Ativos / inativos', `${r.ativos} / ${r.inativos}`)}
                    ${kpi('Em manutenção', r.emManutencao)}${kpi('Manutenções abertas', r.manutencoesAbertas)}
-                   ${kpi('Gastos acumulados', money(r.gastos))}
+                   ${kpi('Trocas de óleo vencidas', r.trocasOleoVencidas)}
+                   ${kpi('Gastos com manutenção', money(r.gastos))}
+                   ${kpi('Gasto com combustível', money(r.custos.combustivel.total))}
+                   ${kpi('Total geral', money(r.custos.totalGeral))}
                  </section>
                  <section class="card">${table([{ label: 'Indicador' }, { label: 'Valor', align: 'right' }],
                    items.map(([label, value]) => [esc(label), typeof value === 'number' && label.includes('(R$)') ? money(value) : String(value)]))}</section>`,
@@ -106,7 +115,7 @@ const ReportScreens = (function () {
 
   function vehicles(main, params, ctx) {
     reportPage(main, ctx, 'veiculos', 'Relatório de veículos',
-      'Relação da frota com situação e custo total no período. Clique em Detalhes para a ficha completa.',
+      'Relação da frota com situação, custos separados (manutenção e combustível) e consumo médio. Clique em Detalhes para a ficha completa.',
       `${periodFields()}
        <label class="field">Situação cadastral<select name="situacao"><option value="Todos">Todas</option><option value="Ativo">Ativos</option><option value="Inativo">Inativos</option></select></label>
        <label class="field">Situação operacional<select name="operacional"><option value="Todos">Todas</option><option value="Disponível">Disponíveis</option><option value="Em manutenção">Em manutenção</option></select></label>`,
@@ -114,16 +123,20 @@ const ReportScreens = (function () {
         const rows = Reports.vehiclesReport(ctx.state, f);
         return {
           html: `<section class="card">${table(
-            [{ label: 'Placa' }, { label: 'Marca / modelo' }, { label: 'Identificação' }, { label: 'Cadastro' },
-              { label: 'Operacional' }, { label: 'Custo total', align: 'right' }, { label: '' }],
-            rows.map(v => [`<strong>${esc(v.placa)}</strong>`, esc(v.marca), esc(v.identificacao),
-              UI.situacaoBadge(v.situacao), UI.operacionalBadge(v.operacional), money(v.custoTotal),
+            [{ label: 'Placa' }, { label: 'Marca / modelo' }, { label: 'Identificação' }, { label: 'Km atual', align: 'right' },
+              { label: 'Cadastro' }, { label: 'Operacional' }, { label: 'Consumo médio' }, { label: 'Manutenção', align: 'right' },
+              { label: 'Combustível', align: 'right' }, { label: 'Custo total', align: 'right' }, { label: '' }],
+            rows.map(v => [`<strong>${esc(v.placa)}</strong>`, esc(v.marca), esc(v.identificacao), Utils.formatKm(v.kmAtual),
+              UI.situacaoBadge(v.situacao), UI.operacionalBadge(v.operacional),
+              v.consumoMedio === null ? badge('Sem dados', 'muted') : badge(`${String(v.consumoMedio).replace('.', ',')} km/l`, 'ok'),
+              money(v.custoManutencao), money(v.custoCombustivel), money(v.custoTotal),
               `<a class="link" href="#/veiculos/${esc(v.id)}">Detalhes</a>`]),
             'Nenhum veículo corresponde ao filtro.')}</section>`,
           csv: {
             name: 'relatorio-veiculos',
-            headers: ['Placa', 'Marca', 'Identificação', 'Situação cadastral', 'Situação operacional', 'Custo total'],
-            rows: rows.map(v => [v.placa, v.marca, v.identificacao, v.situacao, v.operacional, v.custoTotal]),
+            headers: ['Placa', 'Marca', 'Identificação', 'Km atual', 'Situação cadastral', 'Situação operacional', 'Consumo médio (km/l)', 'Custo manutenção', 'Custo combustível', 'Custo total'],
+            rows: rows.map(v => [v.placa, v.marca, v.identificacao, v.kmAtual, v.situacao, v.operacional,
+              v.consumoMedio === null ? 'Dados insuficientes' : v.consumoMedio, v.custoManutencao, v.custoCombustivel, v.custoTotal]),
           },
         };
       });
@@ -218,49 +231,150 @@ const ReportScreens = (function () {
       });
   }
 
+  function fuel(main, params, ctx) {
+    reportPage(main, ctx, 'combustivel', 'Relatório de combustível',
+      'Gastos, litros, número de abastecimentos e consumo médio por veículo (método de tanque cheio). Sem dados suficientes, o consumo não é calculado.',
+      `${periodFields()}${vehicleSelect(ctx.state)}`,
+      (f) => {
+        const r = Reports.fuelReport(ctx.state, f);
+        return {
+          html: `<section class="kpi-grid">
+                   ${kpi('Abastecimentos', r.totals.registros)}${kpi('Litros', Utils.formatQuantity(r.totals.litros))}
+                   ${kpi('Gasto total', money(r.totals.valor))}${kpi('Preço médio por litro', r.totals.precoMedio === null ? '—' : money(r.totals.precoMedio))}
+                   ${kpi('Veículos com consumo', r.totals.veiculosComConsumo)}${kpi('Veículos sem dados', r.totals.veiculosSemDados)}
+                 </section>
+                 <section class="card"><h2>Resumo por veículo</h2>${table(
+                   [{ label: 'Veículo' }, { label: 'Km atual', align: 'right' }, { label: 'Abastecimentos', align: 'right' },
+                     { label: 'Litros', align: 'right' }, { label: 'Gasto', align: 'right' }, { label: 'Preço médio', align: 'right' }, { label: 'Consumo médio' }],
+                   r.vehicles.map(v => [esc(v.placa), Utils.formatKm(v.kmAtual), String(v.abastecimentos), Utils.formatQuantity(v.litros),
+                     money(v.valor), v.precoMedio === null ? '—' : money(v.precoMedio),
+                     v.consumoMedio === null ? badge(v.consumoStatus, 'muted') : badge(`${String(v.consumoMedio).replace('.', ',')} km/l`, 'ok')]),
+                   'Nenhum veículo para o filtro informado.')}</section>
+                 <section class="card"><h2>Abastecimentos no período</h2>${table(
+                   [{ label: 'Data e hora' }, { label: 'Veículo' }, { label: 'Km', align: 'right' }, { label: 'Litros', align: 'right' },
+                     { label: 'Preço/litro', align: 'right' }, { label: 'Valor total', align: 'right' }, { label: 'Posto' }, { label: 'Tanque' }],
+                   r.rows.map(x => [Utils.formatDateTime(x.dataHora), esc(x.veiculoPlaca), Utils.formatKm(x.quilometragem),
+                     Utils.formatQuantity(x.litros), money(x.precoLitro), money(x.valorTotal), esc(x.posto),
+                     x.tanqueCheio ? badge('Cheio', 'ok') : badge('Parcial', 'muted')]),
+                   'Nenhum abastecimento no período selecionado.')}</section>`,
+          csv: {
+            name: 'relatorio-combustivel',
+            headers: ['Data e hora', 'Veículo', 'Km', 'Litros', 'Preço por litro', 'Valor total', 'Posto', 'Responsável', 'Tanque cheio', 'Consumo médio (km/l)'],
+            rows: r.rows.map(x => [x.dataHora, x.veiculoPlaca, x.quilometragem, x.litros, x.precoLitro, x.valorTotal, x.posto, x.responsavel,
+              x.tanqueCheio ? 'Sim' : 'Não', (r.vehicles.find(v => v.veiculoId === x.veiculoId) || {}).consumoMedio ?? 'Dados insuficientes']),
+          },
+        };
+      });
+  }
+
+  function oil(main, params, ctx) {
+    reportPage(main, ctx, 'trocas', 'Relatório de trocas de óleo',
+      'Última troca por veículo, próximos limites por quilometragem e por tempo e alertas. Não existe intervalo universal: cada troca informa os seus intervalos.',
+      `${vehicleSelect(ctx.state)}
+       <label class="field">Situação<select name="situacao"><option value="Todas">Todas</option>${Oil.SITUACOES.map(s => option(s, s)).join('')}</select></label>`,
+      (f) => {
+        const r = Reports.oilReport(ctx.state, f);
+        const conf = r.configuracoes;
+        return {
+          html: `<section class="kpi-grid">
+                   ${kpi('Trocas registradas', r.totals.total)}${kpi('Em dia', r.totals.porSituacao['Em dia'] || 0)}
+                   ${kpi('Próximas da troca', r.totals.proximas)}${kpi('Vencidas', r.totals.vencidas)}${kpi('Pendentes de dados', r.totals.pendentes)}
+                   ${kpi('Custo total', money(r.totals.custoTotal))}
+                 </section>
+                 <p class="muted small">Alerta configurado: ${conf.alertaTrocaOleoKm} km ou ${conf.alertaTrocaOleoDias} dias de antecedência.</p>
+                 <section class="card"><h2>Situação por veículo (última troca)</h2>${table(
+                   [{ label: 'Veículo' }, { label: 'Km atual', align: 'right' }, { label: 'Última troca' }, { label: 'Próxima (km)', align: 'right' },
+                     { label: 'Próxima (data)' }, { label: 'Km restante', align: 'right' }, { label: 'Dias restantes', align: 'right' }, { label: 'Situação' }],
+                   r.porVeiculo.map(v => [esc(v.placa), Utils.formatKm(v.kmAtual),
+                     v.ultimaTroca ? `${Utils.formatDate(v.ultimaTroca.data)} · ${Utils.formatKm(v.ultimaTroca.quilometragem)}` : 'Sem troca registrada',
+                     v.limiteKm === null ? '—' : Utils.formatKm(v.limiteKm), v.limiteData === null ? '—' : Utils.formatDate(v.limiteData),
+                     v.kmRestante === null ? '—' : Utils.formatKm(v.kmRestante), v.diasRestantes === null ? '—' : `${v.diasRestantes} dia(s)`,
+                     OilScreens.situacaoBadge(v.situacao)]),
+                   'Nenhum veículo para o filtro informado.')}</section>
+                 <section class="card"><h2>Trocas registradas</h2>${table(
+                   [{ label: 'Data' }, { label: 'Veículo' }, { label: 'Km da troca', align: 'right' }, { label: 'Óleo' }, { label: 'Litros', align: 'right' },
+                     { label: 'Intervalo km', align: 'right' }, { label: 'Intervalo meses', align: 'right' }, { label: 'Próxima (km)', align: 'right' },
+                     { label: 'Próxima (data)' }, { label: 'Situação' }, { label: 'Custo', align: 'right' }, { label: 'Origem do custo' }],
+                   r.rows.map(t => [Utils.formatDate(t.data), esc(t.veiculoPlaca), Utils.formatKm(t.quilometragem), esc(t.especificacao),
+                     Utils.formatQuantity(t.quantidade), t.intervaloKm === null ? 'Não configurado' : Utils.formatKm(t.intervaloKm),
+                     t.intervaloMeses === null ? 'Não configurado' : `${t.intervaloMeses} mês(es)`, t.limiteKm === null ? '—' : Utils.formatKm(t.limiteKm),
+                     t.limiteData === null ? '—' : Utils.formatDate(t.limiteData), OilScreens.situacaoBadge(t.situacao), money(t.custoTotal), esc(t.custoOrigem)]),
+                   'Nenhuma troca de óleo para o filtro informado.')}</section>`,
+          csv: {
+            name: 'relatorio-trocas-oleo',
+            headers: ['Data', 'Veículo', 'Km da troca', 'Óleo', 'Litros', 'Intervalo km', 'Intervalo meses', 'Próxima por km', 'Próxima por data', 'Situação', 'Custo', 'Origem do custo'],
+            rows: r.rows.map(t => [t.data, t.veiculoPlaca, t.quilometragem, t.especificacao, t.quantidade, t.intervaloKm ?? 'Não configurado',
+              t.intervaloMeses ?? 'Não configurado', t.limiteKm ?? '', t.limiteData ?? '', t.situacao, t.custoTotal, t.custoOrigem]),
+          },
+        };
+      });
+  }
+
   function full(main, params, ctx) {
     reportPage(main, ctx, 'completo', 'Relatório completo',
-      'Visão consolidada da frota, do almoxarifado e dos custos. Use Imprimir para gerar PDF pelo navegador.',
+      'Visão consolidada da frota, do almoxarifado, da manutenção e do combustível. Use Imprimir para gerar PDF pelo navegador.',
       periodFields(),
       (f) => {
         const r = Reports.fullReport(ctx.state, f);
         const a = r.almoxarifado;
+        const conf = Oil.configuracoes(ctx.state);
         const sections = [
           ['Resumo da frota', [
             ['Total de veículos', r.geral.total], ['Ativos', r.geral.ativos], ['Inativos', r.geral.inativos],
             ['Em manutenção', r.geral.emManutencao]]],
           ['Manutenções', [
             ['Abertas', r.manutencoes.abertas], ['Em andamento', r.manutencoes.emAndamento], ['Concluídas', r.manutencoes.concluidas],
-            ['Custo total (R$)', r.manutencoes.custoTotal]]],
+            ['Custo total de manutenção (R$)', r.manutencoes.custoTotal]]],
           ['Almoxarifado', [
             ['Peças cadastradas', a.pecas], ['Saldo total (un.)', a.saldoTotal], ['Valor estimado do estoque (R$, estimativa)', a.valorEstimado],
             ['Estoque baixo', a.baixo], ['Entradas no período (un.)', a.entradasPeriodo], ['Retiradas no período (un.)', a.retiradasPeriodo],
             ['Valor das retiradas no período (R$)', a.retiradasValor]]],
           ['Peças externas', [
             ['Registros', r.externas.registros], ['Unidades', r.externas.quantidade], ['Valor (R$)', r.externas.valor]]],
+          ['Trocas de óleo', [
+            ['Trocas registradas', r.trocasOleo.total], ['Em dia', r.trocasOleo.porSituacao['Em dia'] || 0],
+            ['Próximas da troca', r.trocasOleo.proximas], ['Vencidas', r.trocasOleo.vencidas], ['Pendentes de dados', r.trocasOleo.pendentes],
+            ['Alerta (km de antecedência)', conf.alertaTrocaOleoKm], ['Alerta (dias de antecedência)', conf.alertaTrocaOleoDias]]],
+          ['Combustível', [
+            ['Abastecimentos', r.combustivel.registros], ['Litros', r.combustivel.litros], ['Gasto com combustível (R$)', r.combustivel.valor],
+            ['Veículos com consumo calculado', r.combustivel.veiculosComConsumo], ['Veículos sem dados de consumo', r.combustivel.veiculosSemDados]]],
           ['Custos acumulados', [
             ['Peças do almoxarifado (R$)', r.custos.pecasAlmoxarifado], ['Peças externas (R$)', r.custos.pecasExternas],
-            ['Outras despesas (R$)', r.custos.outrasDespesas], ['Total geral (R$)', r.custos.total]]],
+            ['Outras despesas (R$)', r.custos.outrasDespesas], ['Trocas de óleo com custo próprio (R$)', r.custos.trocasOleoProprias],
+            ['Total de manutenção (R$)', r.custos.total], ['Combustível (R$)', r.combustivel.valor], ['Total geral (R$)', r.totalGeral]]],
         ];
         const isMoney = (label) => label.includes('(R$)');
         const fmt = (label, value) => (typeof value === 'number' && isMoney(label) ? money(value) : String(value));
-        const csvRows = sections.flatMap(([section, items]) => items.map(([label, value]) => [section, label, value]));
+        /*
+         * No CSV, valores monetários ficam como número (o exportador aplica 2 casas) e
+         * contagens/quantidades viram texto, para não virar "8,00" em uma contagem de veículos.
+         */
+        const csvValue = (label, value) => (typeof value === 'number' && isMoney(label) ? value : String(value));
+        const csvRows = sections.flatMap(([section, items]) => items.map(([label, value]) => [section, label, csvValue(label, value)]));
         const sectionHtml = sections.map(([section, items]) => `
           <section class="card report-section">
             <h2>${esc(section)}</h2>
             ${table([{ label: 'Indicador' }, { label: 'Valor', align: 'right' }], items.map(([label, value]) => [esc(label), fmt(label, value)]))}
           </section>`).join('');
         const ranking = table(
-          [{ label: 'Placa' }, { label: 'Situação' }, { label: 'Operacional' }, { label: 'Custo total', align: 'right' }],
-          r.veiculosPorCusto.map(v => [esc(v.placa), UI.situacaoBadge(v.situacao), UI.operacionalBadge(v.operacional), money(v.custoTotal)]),
+          [{ label: 'Placa' }, { label: 'Situação' }, { label: 'Operacional' }, { label: 'Manutenção', align: 'right' },
+            { label: 'Combustível', align: 'right' }, { label: 'Custo total', align: 'right' }],
+          r.veiculosPorCusto.map(v => [esc(v.placa), UI.situacaoBadge(v.situacao), UI.operacionalBadge(v.operacional),
+            money(v.custoManutencao), money(v.custoCombustivel), money(v.custoTotal)]),
         );
+        const rankingCsv = r.veiculosPorCusto.map(v => [v.placa, v.situacao, v.operacional, v.custoManutencao, v.custoCombustivel, v.custoTotal]);
         return {
           html: `${sectionHtml}
-                 <section class="card report-section"><h2>Veículos por custo de manutenção</h2>${ranking}</section>`,
-          csv: { name: 'relatorio-completo', headers: ['Seção', 'Indicador', 'Valor'], rows: csvRows },
+                 <section class="card report-section"><h2>Veículos por custo total</h2>${ranking}</section>
+                 <p class="muted small">As trocas de óleo com custo próprio já estão incluídas no total de manutenção. O combustível é somado uma única vez no total geral.</p>`,
+          csv: {
+            name: 'relatorio-completo',
+            headers: ['Seção', 'Indicador', 'Valor'],
+            rows: csvRows.concat(rankingCsv.map(row => ['Veículos por custo total', row[0], row.slice(1).join(' | ')])),
+          },
         };
       });
   }
 
-  return { general, vehicles, warehouse, withdrawals, maintenances, full };
+  return { general, vehicles, warehouse, withdrawals, maintenances, fuel, oil, full };
 })();
