@@ -73,7 +73,9 @@ export async function loginAction(
   );
 
   if (!valido) {
-    // Uma janela de bloqueio expirada inicia uma nova contagem, sem bloqueio imediato.\n    const bloqueioExpirado = Boolean(user.lockedUntil && user.lockedUntil <= new Date());\n    const tentativas = bloqueioExpirado ? 1 : user.failedLoginCount + 1;
+    // Uma janela de bloqueio expirada inicia uma nova contagem, sem bloqueio imediato.
+    const bloqueioExpirado = Boolean(user.lockedUntil && user.lockedUntil <= new Date());
+    const tentativas = bloqueioExpirado ? 1 : user.failedLoginCount + 1;
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -104,7 +106,11 @@ export async function loginAction(
     },
   });
 
+  // Mantem o TTL do banco, JWT e cookie dentro de limites previsiveis.
   const ttlHoras = Number(process.env.SESSION_TTL_HOURS ?? "8");
+  if (!Number.isFinite(ttlHoras) || ttlHoras < 1 || ttlHoras > 720) {
+    throw new Error("SESSION_TTL_HOURS deve ser um numero entre 1 e 720.");
+  }
   const expiresAt = new Date(Date.now() + ttlHoras * 3600 * 1000);
   const rawToken = randomBytes(32).toString("base64url");
   const ip = getClientIp(headers);
@@ -113,7 +119,8 @@ export async function loginAction(
   const session = await prisma.session.create({
     data: {
       userId: user.id,
-      // Hash temporario unico; sera substituido pelo hash do JWT antes do cookie.\n      tokenHash: hashToken(rawToken),
+      // Hash temporario unico; sera substituido pelo hash do JWT antes do cookie.
+      tokenHash: hashToken(rawToken),
       userAgent: ua,
       ipHash: hashIp(ip),
       expiresAt,
@@ -121,6 +128,10 @@ export async function loginAction(
   });
 
   const jwt = await createSessionToken(session.id, user.id);
+  await prisma.session.update({
+    where: { id: session.id },
+    data: { tokenHash: hashToken(jwt) },
+  });
   await setSessionCookie(jwt);
 
   await audit({
