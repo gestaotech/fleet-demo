@@ -38,6 +38,150 @@ const Reports = (function () {
     }).sort((a, b) => a.placa.localeCompare(b.placa));
   }
 
+  /*
+   * Histórico integrado de um veículo, ordenado de forma decrescente (mais recente primeiro).
+   * Cada evento aparece uma única vez e traz o seu próprio custo, sempre com a data do evento.
+   * Usado pela tela de detalhes e pelas telas de veículos, garantindo os mesmos números dos relatórios.
+   */
+  function vehicleHistory(state, veiculoId, period = {}) {
+    const noPeriodo = (valor) => Utils.inPeriod(valor, period.from, period.to);
+    const eventos = [];
+
+    Maintenance.list(state, { veiculoId, from: period.from, to: period.to }).forEach(m => {
+      const custos = Costs.maintenanceCosts(state, m.id);
+      eventos.push({
+        data: m.dataEntrada,
+        tipo: 'Manutenção',
+        referencia: m.id,
+        descricao: m.descricaoProblema,
+        situacao: m.status,
+        quilometragem: Number.isInteger(m.quilometragem) ? m.quilometragem : null,
+        custo: custos.total,
+        /* Valor é o total da manutenção; as peças e despesas aparecem em eventos próprios abaixo. */
+        custoAgregado: true,
+        rota: `#/manutencao/${m.id}`,
+      });
+    });
+
+    eventoCustos(state, veiculoId, 'retiradas', period).forEach(m => {
+      const part = Warehouse.findPart(state, m.pecaId);
+      eventos.push({
+        data: m.data,
+        tipo: 'Peça do almoxarifado',
+        referencia: m.id,
+        descricao: `${part ? part.descricao : m.pecaId} (${m.quantidade} un.)`,
+        situacao: m.manutencaoId ? `Manutenção ${m.manutencaoId}` : 'Retirada direta',
+        quilometragem: null,
+        custo: Utils.round2(m.quantidade * m.valorUnitario),
+        rota: part ? `#/almoxarifado/estoque/${part.id}` : null,
+      });
+    });
+
+    eventoCustos(state, veiculoId, 'externas', period).forEach(e => {
+      eventos.push({
+        data: e.data,
+        tipo: 'Peça externa',
+        referencia: e.id,
+        descricao: `${e.descricao} (${e.quantidade} un.)`,
+        situacao: e.manutencaoId ? `Manutenção ${e.manutencaoId}` : 'Sem manutenção',
+        quilometragem: null,
+        custo: Utils.round2(e.quantidade * e.valorUnitario),
+        rota: null,
+      });
+    });
+
+    eventoCustos(state, veiculoId, 'despesas', period).forEach(d => {
+      eventos.push({
+        data: d.data,
+        tipo: 'Despesa de manutenção',
+        referencia: d.id,
+        descricao: d.descricao,
+        situacao: `Manutenção ${d.manutencaoId}`,
+        quilometragem: null,
+        custo: d.valor,
+        rota: `#/manutencao/${d.manutencaoId}`,
+      });
+    });
+
+    Oil.list(state, { veiculoId }).filter(t => noPeriodo(t.data)).forEach(t => {
+      eventos.push({
+        data: t.data,
+        tipo: 'Troca de óleo',
+        referencia: t.id,
+        descricao: `${t.especificacao} (${Utils.formatQuantity(t.quantidade)} L)`,
+        situacao: t.situacao,
+        quilometragem: Number.isInteger(t.quilometragem) ? t.quilometragem : null,
+        custo: t.custoTotal,
+        /* Custo já contabilizado na retirada de estoque correspondente — exibido, mas não somado de novo. */
+        custoJaContado: Boolean(t.movimentacaoId),
+        rota: `#/manutencao/oleo/${t.id}/editar`,
+      });
+    });
+
+    Fuel.list(state, { veiculoId, from: period.from, to: period.to }).forEach(a => {
+      eventos.push({
+        data: a.dataHora,
+        tipo: 'Abastecimento',
+        referencia: a.id,
+        descricao: `${Utils.formatQuantity(a.litros)} L em ${a.posto}`,
+        situacao: a.tanqueCheio ? 'Tanque cheio' : 'Tanque parcial',
+        quilometragem: Number.isInteger(a.quilometragem) ? a.quilometragem : null,
+        custo: a.valorTotal,
+        rota: `#/combustivel/${a.id}/editar`,
+      });
+    });
+
+    eventos.sort((a, b) => b.data.localeCompare(a.data) || b.referencia.localeCompare(a.referencia));
+    return eventos;
+  }
+
+  /* Itens de custo (retiradas, peças externas ou despesas) de um veículo, já filtrados pelo período. */
+  function eventoCustos(state, veiculoId, tipo, period) {
+    const porTipo = {
+      retiradas: () => state.movimentacoes.filter(m => m.tipo === 'Saida' && m.veiculoId === veiculoId),
+      externas: () => state.pecasExternas.filter(e => e.veiculoId === veiculoId),
+      despesas: () => state.despesas.filter(d => {
+        const manutencao = Maintenance.find(state, d.manutencaoId);
+        return manutencao && manutencao.veiculoId === veiculoId;
+      }),
+    };
+    const seletor = porTipo[tipo];
+    if (!seletor) return [];
+    return seletor().filter(item => Utils.inPeriod(item.data, period.from, period.to));
+  }
+
+  /*
+   * Resumo do veículo no período: custos separados, contagem por tipo de evento e a lista de
+   * eventos. Um veículo sem movimentações continua aparecendo, com `temRegistros` falso.
+   */
+  function vehiclePeriodSummary(state, veiculoId, period = {}) {
+    const eventos = vehicleHistory(state, veiculoId, period);
+    const custos = Costs.vehicleCosts(state, veiculoId, period);
+    const contar = (tipo) => eventos.filter(e => e.tipo === tipo).length;
+    return {
+      veiculoId,
+      periodo: period,
+      eventos,
+      temRegistros: eventos.length > 0,
+      custos,
+      totalGeral: custos.totalGeral,
+      contagens: {
+        manutencoes: contar('Manutenção'),
+        trocasOleo: contar('Troca de óleo'),
+        abastecimentos: contar('Abastecimento'),
+        retiradas: contar('Peça do almoxarifado'),
+        pecasExternas: contar('Peça externa'),
+        despesas: contar('Despesa de manutenção'),
+      },
+    };
+  }
+
+  /* Resumo no período para todos os veículos (ou para uma lista filtrada), preservando a ordem. */
+  function vehicleSummaries(state, period = {}, vehicles = null) {
+    const lista = vehicles || Vehicles.filter(state, {});
+    return lista.map(v => ({ veiculo: v, ...vehiclePeriodSummary(state, v.id, period) }));
+  }
+
   function warehouseReport(state, filters = {}) {
     const rows = Warehouse.filterInventory(Warehouse.inventory(state), filters);
     const totals = {
@@ -203,5 +347,5 @@ const Reports = (function () {
     return '\uFEFF' + [headers, ...rows].map(row => row.map(escape).join(';')).join('\r\n');
   }
 
-  return { fleetGeneral, vehiclesReport, warehouseReport, withdrawalsReport, maintenanceReport, fuelReport, oilReport, fullReport, toCsv };
+  return { fleetGeneral, vehiclesReport, vehicleHistory, vehiclePeriodSummary, vehicleSummaries, warehouseReport, withdrawalsReport, maintenanceReport, fuelReport, oilReport, fullReport, toCsv };
 })();
