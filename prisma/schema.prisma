@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum ModuleKey {
+  VEHICLES
+  MAINTENANCE
+  FUEL
+  WAREHOUSE
+  REPORTS
+  USERS
+  AUDIT
+}
+
+enum AuditAction {
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  SESSION_REVOKED
+  COMPANY_SWITCHED
+  USER_CREATED
+  USER_UPDATED
+  USER_DEACTIVATED
+  USER_REACTIVATED
+  PERMISSIONS_CHANGED
+}
+
+enum AuditResult {
+  SUCCESS
+  DENIED
+  ERROR
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  document  String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  memberships CompanyMembership[]
+  sessions    Session[]
+  auditLogs   AuditLog[]
+
+  @@index([active])
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  name               String
+  email              String    @unique
+  passwordHash       String
+  isPlatformAdmin    Boolean   @default(false)
+  active             Boolean   @default(true)
+  lastLoginAt        DateTime? @db.Timestamptz(3)
+  failedLoginCount   Int       @default(0)
+  lockedUntil        DateTime? @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @db.Timestamptz(3)
+
+  memberships CompanyMembership[]
+  sessions    Session[]
+  auditLogs   AuditLog[]
+
+  @@index([active])
+}
+
+model CompanyMembership {
+  id        String   @id @default(cuid())
+  userId    String
+  companyId String
+  role      Role     @default(VIEWER)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  permissions MembershipPermission[]
+
+  @@unique([userId, companyId])
+  @@index([companyId, role])
+  @@index([companyId, active])
+}
+
+model MembershipPermission {
+  id           String    @id @default(cuid())
+  membershipId String
+  module       ModuleKey
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+
+  membership CompanyMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@unique([membershipId, module])
+  @@index([module])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  companyId  String?
+  tokenHash  String    @unique
+  userAgent  String?
+  ipHash     String?
+  lastUsedAt DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt  DateTime  @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  companyId   String?
+  actorUserId String?
+  action      AuditAction
+  entity      String
+  entityId    String?
+  result      AuditResult
+  metadata    Json?
+  ipHash      String?
+  userAgent   String?
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  actor   User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+}
