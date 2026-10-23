@@ -1,6 +1,6 @@
 import { vi, beforeEach } from "vitest";
 
-(Object.defineProperty(process.env, "NODE_ENV", { value: "test", writable: true }));
+(process.env as Record<string, string | undefined>).NODE_ENV = "test";
 process.env.SESSION_SECRET =
   process.env.SESSION_SECRET ?? "test-secret-test-secret-test-secret-test-32";
 process.env.IP_HASH_SALT = process.env.IP_HASH_SALT ?? "test-salt";
