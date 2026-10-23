@@ -113,7 +113,7 @@ export async function loginAction(
   const session = await prisma.session.create({
     data: {
       userId: user.id,
-      tokenHash: hashToken(rawToken),
+      // Hash temporario unico; sera substituido pelo hash do JWT antes do cookie.\n      tokenHash: hashToken(rawToken),
       userAgent: ua,
       ipHash: hashIp(ip),
       expiresAt,
