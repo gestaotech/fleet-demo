@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 
 export function hashIp(ip: string | null | undefined): string | null {
   if (!ip) return null;
-  const salt = process.env.IP_HASH_SALT ?? process.env.SESSION_SECRET ?? "dev";
+  const salt = process.env.IP_HASH_SALT ?? (process.env.NODE_ENV === "production" ? "" : process.env.SESSION_SECRET ?? "dev");\n  if (!salt) {\n    throw new Error("IP_HASH_SALT deve ser configurado em producao.");\n  }
   return createHash("sha256")
     .update(ip.trim().toLowerCase())
     .update(salt)
