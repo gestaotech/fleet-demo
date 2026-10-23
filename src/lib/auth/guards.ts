@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/db/prisma";
 import { verifySessionToken } from "@/lib/auth/session";
 import { DEFAULT_ROLE_MODULES, ModuleKey } from "@/config/permissions";
+import { hashToken } from "@/lib/security/network";
 
 export type SessionContext = {
   sessionId: string;
@@ -34,6 +35,10 @@ export async function getSessionContext(
   });
 
   if (!session || session.revokedAt) return null;
+  // O identificador do usuario assinado no JWT deve corresponder a sessao persistida.
+  if (verified.userId !== session.userId) return null;
+  // A sessao so e valida se o hash do JWT recebido corresponder ao hash armazenado.
+  if (session.tokenHash !== hashToken(token)) return null;
   if (session.expiresAt < new Date()) return null;
   if (!session.user.active) return null;
 
@@ -41,6 +46,11 @@ export async function getSessionContext(
   let membershipId: string | null = null;
   let role: import("@prisma/client").Role | null = null;
   let permissions: ModuleKey[] = [];
+
+  if (companyId && !session.company?.active) {
+    // Empresas suspensas nao podem ser usadas, mesmo que a associacao siga ativa.
+    companyId = null;
+  }
 
   if (companyId) {
     const membership = await prisma.companyMembership.findUnique({
@@ -76,10 +86,6 @@ export async function getSessionContext(
 
 export function hasModule(ctx: SessionContext, module: ModuleKey) {
   if (ctx.isPlatformAdmin) return true;
-  if (ctx.role === "OWNER" || ctx.role === "ADMIN") {
-    // ADMIN/OWNER mantem acesso por padrao, mas a verificacao explicita
-    // tambem considera a lista efetiva para auditoria e regras futuras.
-  }
   return ctx.permissions.includes(module);
 }
 
