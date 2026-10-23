@@ -30,8 +30,20 @@ describe("Isolamento multiempresa - helpers e modelo", () => {
   });
 
   it("funcoes de auditoria nao exponham segredos no contrato", async () => {
-    const { hashIp, hashToken } = await import("@/lib/security/network");
+    const { hashIp, hashToken, getClientIp } = await import("@/lib/security/network");
     expect(typeof hashIp("1.2.3.4")).toBe("string");
     expect(typeof hashToken("abc")).toBe("string");
+
+    // Cabeçalhos encaminhados não devem ser aceitos sem configuração explícita do proxy.
+    const anterior = process.env.TRUSTED_PROXY_HEADERS;
+    try {
+      process.env.TRUSTED_PROXY_HEADERS = "false";
+      expect(getClientIp(new Headers({ "x-forwarded-for": "203.0.113.10" }))).toBeNull();
+      process.env.TRUSTED_PROXY_HEADERS = "true";
+      expect(getClientIp(new Headers({ "x-forwarded-for": "203.0.113.10, 10.0.0.1" }))).toBe("203.0.113.10");
+    } finally {
+      if (anterior === undefined) delete process.env.TRUSTED_PROXY_HEADERS;
+      else process.env.TRUSTED_PROXY_HEADERS = anterior;
+    }
   });
 });
