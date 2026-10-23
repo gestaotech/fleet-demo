@@ -11,7 +11,8 @@ import { ModuleKey } from "@prisma/client";
  *
  * Regras:
  *  - OWNER e ADMIN podem gerenciar usuarios e permissoes;
- *  - permissoes explicitas em MembershipPermission somam-se ao perfil;\n *  - nesta fase nao existe negacao explicita: a associacao so pode conceder modulos adicionais;
+ *  - permissoes explicitas em MembershipPermission somam-se ao perfil;
+ *  - nesta fase nao existe negacao explicita: a associacao so pode conceder modulos adicionais;
  *  - verificacao e feita por companyId da sessao, nunca por companyId do cliente.
  */
 export const DEFAULT_ROLE_MODULES: Record<import("@prisma/client").Role, ModuleKey[]> = {
