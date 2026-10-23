@@ -18,7 +18,9 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:validate": "prisma validate",
-    "db:diff": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script"
+    "db:diff": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script",
+    "test:legacy": "node --test tests/*.test.js",
+    "test:all": "npm test && npm run test:legacy"
   },
   "dependencies": {
     "@node-rs/argon2": "2.2.2",
