@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db/prisma";
-import { verify, hash } from "@node-rs/argon2";
+import { verify } from "@node-rs/argon2";
 import { randomBytes } from "node:crypto";
 import { loginSchema } from "@/lib/validations/auth";
 import { createSessionToken, setSessionCookie } from "@/lib/auth/session";
@@ -73,7 +73,7 @@ export async function loginAction(
   );
 
   if (!valido) {
-    const tentativas = user.failedLoginCount + 1;
+    // Uma janela de bloqueio expirada inicia uma nova contagem, sem bloqueio imediato.\n    const bloqueioExpirado = Boolean(user.lockedUntil && user.lockedUntil <= new Date());\n    const tentativas = bloqueioExpirado ? 1 : user.failedLoginCount + 1;
     await prisma.user.update({
       where: { id: user.id },
       data: {
