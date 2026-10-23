@@ -86,10 +86,6 @@ export async function getSessionContext(
 
 export function hasModule(ctx: SessionContext, module: ModuleKey) {
   if (ctx.isPlatformAdmin) return true;
-  if (ctx.role === "OWNER" || ctx.role === "ADMIN") {
-    // ADMIN/OWNER mantem acesso por padrao, mas a verificacao explicita
-    // tambem considera a lista efetiva para auditoria e regras futuras.
-  }
   return ctx.permissions.includes(module);
 }
 
