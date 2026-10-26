@@ -1,19 +1,27 @@
 {
   "name": "fleet-demo",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "private": true,
-  "description": "Demonstração de gestão de frota em HTML, CSS, JavaScript, Neon e Vercel - Gestão Tech",
+  "description": "Demonstração de gestão de frota em HTML, CSS, JavaScript, funções Vercel e Neon PostgreSQL - Gestão Tech",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "vercel dev",
+    "start": "node scripts/serve.js",
     "build": "node scripts/check-static.js",
-    "start": "vercel dev",
+    "db:migrate": "node scripts/migrate.js",
+    "db:seed": "node scripts/seed.js",
+    "test": "node --test tests/unit/*.test.js",
     "test:legacy": "node --test tests/*.test.js",
-    "test:all": "npm run build && npm run test:legacy"
+    "test:integration": "node scripts/require-test-db.js && node --test --test-concurrency=1 tests/integration/*.test.js",
+    "test:all": "npm run build && npm run test:legacy && npm test && npm run test:integration"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.2"
+    "@neondatabase/serverless": "^1.2.0"
   },
   "devDependencies": {
+    "pg": "^8.23.1",
     "vercel": "^48.1.0"
   }
 }
