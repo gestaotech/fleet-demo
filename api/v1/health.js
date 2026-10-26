@@ -1,37 +1,30 @@
-import { neon } from "@neondatabase/serverless";
+"use strict";
 
-/**
- * Verifica a disponibilidade da função e, quando configurado, a conexão com Neon.
- * Não retorna URL, credenciais ou detalhes internos do banco ao cliente.
+/*
+ * GET /api/v1/health
+ *
+ * Verifica se a função responde e se o banco aceita uma consulta simples.
+ * Não retorna URL, host, usuário, mensagem de erro ou detalhes internos.
  */
-export default async function handler(request, response) {
-  if (request.method !== "GET") {
-    response.setHeader("Allow", "GET");
-    return response.status(405).json({ ok: false, error: "Método não permitido." });
-  }
+
+const { exigirMetodo, comErros, enviarJson } = require("../../lib/http");
+const { verificarBanco } = require("../../lib/db");
+
+async function handler(req, res) {
+  exigirMetodo(req, ["GET"]);
 
   if (!process.env.DATABASE_URL) {
-    return response.status(503).json({
-      ok: false,
-      service: "fleet-demo-api",
-      database: "not_configured",
-    });
+    return enviarJson(res, 503, { ok: false, service: "fleet-demo-api", database: "not_configured" });
   }
 
   try {
-    const sql = neon(process.env.DATABASE_URL);
-    await sql`SELECT 1 AS healthy`;
-    return response.status(200).json({
-      ok: true,
-      service: "fleet-demo-api",
-      database: "connected",
-    });
+    await verificarBanco();
   } catch {
-    // Não expor mensagens de erro, host ou detalhes da conexão do banco.
-    return response.status(503).json({
-      ok: false,
-      service: "fleet-demo-api",
-      database: "unavailable",
-    });
+    // Qualquer falha do banco vira "unavailable", sem detalhar a causa.
+    return enviarJson(res, 503, { ok: false, service: "fleet-demo-api", database: "unavailable" });
   }
+
+  return enviarJson(res, 200, { ok: true, service: "fleet-demo-api", database: "connected" });
 }
+
+module.exports = comErros(handler);
