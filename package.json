@@ -1,48 +1,19 @@
 {
   "name": "fleet-demo",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "Fundacao do sistema de gestao de frota (Fase 1) - Gestao Tech",
+  "description": "Demonstração de gestão de frota em HTML, CSS, JavaScript, Neon e Vercel - Gestão Tech",
   "scripts": {
-    "dev": "next dev",
-    "build": "prisma generate && next build",
-    "start": "next start",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration",
-    "test:security": "vitest run tests/security",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
-    "db:seed": "tsx prisma/seed.ts",
-    "db:validate": "prisma validate",
-    "db:diff": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script",
+    "dev": "vercel dev",
+    "build": "node scripts/check-static.js",
+    "start": "vercel dev",
     "test:legacy": "node --test tests/*.test.js",
-    "test:all": "npm test && npm run test:legacy"
+    "test:all": "npm run build && npm run test:legacy"
   },
   "dependencies": {
-    "@node-rs/argon2": "2.2.2",
-    "@prisma/client": "6.19.3",
-    "jose": "6.2.13",
-    "next": "16.4.3",
-    "react": "19.3.1",
-    "react-dom": "19.3.1",
-    "server-only": "0.0.1",
-    "zod": "4.6.7"
+    "@neondatabase/serverless": "^1.0.2"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.1",
-    "@types/node": "^24.10.0",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "dotenv": "^17.2.3",
-    "eslint": "^9.39.1",
-    "eslint-config-next": "16.4.3",
-    "prisma": "6.19.3",
-    "tsx": "^4.20.6",
-    "typescript": "5.9.3",
-    "vitest": "5.0.5"
+    "vercel": "^48.1.0"
   }
 }
