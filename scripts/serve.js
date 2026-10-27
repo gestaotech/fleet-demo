@@ -118,9 +118,10 @@ function criarServidor() {
   });
 }
 
+// Escuta somente na interface de loopback: o servidor local não deve ficar acessível na rede.
 if (require.main === module) {
-  criarServidor().listen(PORT, () => {
-    console.log(`Demonstração disponível em http://localhost:${PORT}`);
+  criarServidor().listen(PORT, "127.0.0.1", () => {
+    console.log(`Demonstração disponível em http://localhost:${PORT} (somente nesta máquina)`);
   });
 }
 

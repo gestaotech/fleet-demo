@@ -15,6 +15,8 @@ const App = (function () {
   let conflictBlocked = false;
   let syncBanner = '';
   let pendingHash = '#/';
+  let recoveryKey = null;
+  const CHAVE_RECUPERACAO = 'gestaotech.frota-demo.recuperacao.v1';
 
   const PAGES = {
     adminHome: AdminScreens.home,
@@ -124,6 +126,13 @@ const App = (function () {
       if (result.status === 409) {
         conflictBlocked = true;
         syncBanner = 'Os dados foram alterados por outro usuário. As gravações estão bloqueadas: recarregue a página para ver a versão atual.';
+        // Preserva as alterações locais para que o usuário não as perca sem aviso.
+        try {
+          window.sessionStorage.setItem(CHAVE_RECUPERACAO, JSON.stringify({ revision, state, timestamp: new Date().toISOString() }));
+          recoveryKey = CHAVE_RECUPERACAO;
+        } catch (erro) {
+          recoveryKey = null;
+        }
       } else {
         syncBanner = `Não foi possível salvar: ${result.error.message} A alteração não foi gravada.`;
       }
@@ -151,11 +160,42 @@ const App = (function () {
     toast: UI.toast,
   };
 
+  function baixarAlteracoesNaoSalvas() {
+    let bruto = null;
+    try { bruto = window.sessionStorage.getItem(CHAVE_RECUPERACAO); } catch (erro) { bruto = null; }
+    if (!bruto) {
+      UI.toast('Nenhuma alteração local pendente para baixar.', 'error');
+      return;
+    }
+    const blob = new Blob([bruto], { type: 'application/json; charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const data = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `alteracoes-nao-salvas-${data}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    UI.toast('Arquivo com as alterações locais baixado.');
+  }
+
   function refreshBanner() {
     const banner = document.getElementById('sync-banner');
-    if (banner) {
+    if (!banner) return;
+    banner.hidden = !syncBanner;
+    if (conflictBlocked && recoveryKey) {
+      banner.innerHTML = `${UI.esc(syncBanner)}
+        <span class="banner-actions">
+          <button type="button" class="btn btn-small btn-ghost" id="banner-baixar">Baixar alterações não salvas</button>
+          <button type="button" class="btn btn-small btn-primary" id="banner-recarregar">Recarregar</button>
+        </span>`;
+      const baixar = document.getElementById('banner-baixar');
+      if (baixar) baixar.addEventListener('click', baixarAlteracoesNaoSalvas);
+      const recarregar = document.getElementById('banner-recarregar');
+      if (recarregar) recarregar.addEventListener('click', () => location.reload());
+    } else {
       banner.textContent = syncBanner;
-      banner.hidden = !syncBanner;
     }
   }
 
