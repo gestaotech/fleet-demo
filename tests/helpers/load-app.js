@@ -1,6 +1,7 @@
 /*
- * Carrega os mesmos arquivos JavaScript que o index.html usa, em um contexto isolado (vm),
- * com LocalStorage e SessionStorage simulados. Assim os testes exercitam o código real do navegador.
+ * Carrega os mesmos arquivos JavaScript que o index.html usa, em um contexto isolado (vm).
+ * `fetch` e `document` são simulados: a interface fala com a API, e os testes controlam
+ * as respostas. Não há LocalStorage: a persistência é do servidor.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -10,6 +11,7 @@ const ROOT = path.join(__dirname, '..', '..');
 
 const FILES = [
   'js/data.js',
+  'js/api.js',
   'js/storage.js',
   'js/core/utils.js',
   'js/core/period.js',
@@ -24,21 +26,13 @@ const FILES = [
   'js/router.js',
 ];
 
-function memoryStorage() {
-  const data = new Map();
-  return {
-    getItem: key => (data.has(key) ? data.get(key) : null),
-    setItem: (key, value) => data.set(key, String(value)),
-    removeItem: key => data.delete(key),
-    clear: () => data.clear(),
-  };
-}
-
 function loadApp() {
   const sandbox = {
     console,
-    localStorage: memoryStorage(),
-    sessionStorage: memoryStorage(),
+    document: { cookie: '', getElementById: () => null },
+    fetch: async () => {
+      throw new Error('fetch não configurado no teste');
+    },
   };
   sandbox.window = sandbox;
   vm.createContext(sandbox);

@@ -135,9 +135,11 @@ const VehicleScreens = (function () {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);
         return;
       }
-      ctx.save();
-      ctx.toast(editing ? 'Veículo atualizado.' : 'Veículo cadastrado.');
-      ctx.go(`#/veiculos/${result.value.id}`);
+      ctx.save().then(ok => {
+        if (!ok) return;
+        ctx.toast(editing ? 'Veículo atualizado.' : 'Veículo cadastrado.');
+        ctx.go(`#/veiculos/${result.value.id}`);
+      });
     });
   }
 

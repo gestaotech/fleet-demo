@@ -1,0 +1,88 @@
+name: CI - Sistema de Frota
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches:
+      - master
+      - feat/html-js-neon-vercel
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fleet-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Build e testes sem banco externo
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências reproduzíveis
+        run: npm ci
+
+      - name: Validar estrutura e build
+        run: npm run build
+
+      - name: Testar regressões do protótipo
+        run: npm run test:legacy
+
+      - name: Testes unitários
+        run: npm test
+
+  integracao:
+    name: Testes de integração contra PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fleet_test
+          POSTGRES_PASSWORD: fleet_test_senha_ci
+          POSTGRES_DB: fleet_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências reproduzíveis
+        run: npm ci
+
+      - name: Criar banco separado para o contexto da aplicação
+        env:
+          PGPASSWORD: fleet_test_senha_ci
+        run: |
+          psql -h localhost -U fleet_test -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE fleet_app_ci"
+
+      - name: Aplicar migrações e executar testes de integração
+        env:
+          DATABASE_URL: "postgresql://fleet_test:fleet_test_senha_ci@localhost:5432/fleet_app_ci?sslmode=disable"
+          TEST_DATABASE_URL: "postgresql://fleet_test:fleet_test_senha_ci@localhost:5432/fleet_test?sslmode=disable"
+          TEST_DATABASE_RESET: "sim"
+          IP_HASH_SALT: "salt-de-ci-nao-secreto"
+        run: npm run test:integration

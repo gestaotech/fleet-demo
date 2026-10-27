@@ -86,9 +86,11 @@ const MaintenanceScreens = (function () {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);
         return;
       }
-      ctx.save();
-      ctx.toast(`Manutenção ${result.value.id} aberta.`);
-      ctx.go(`#/manutencao/${result.value.id}`);
+      ctx.save().then(ok => {
+        if (!ok) return;
+        ctx.toast(`Manutenção ${result.value.id} aberta.`);
+        ctx.go(`#/manutencao/${result.value.id}`);
+      });
     });
   }
 
@@ -214,9 +216,11 @@ const MaintenanceScreens = (function () {
           ctx.toast(result.errors[0], 'error');
           return;
         }
-        ctx.save();
-        ctx.toast('Manutenção iniciada.');
-        ctx.refresh();
+        ctx.save().then(ok => {
+          if (!ok) return;
+          ctx.toast('Manutenção iniciada.');
+          ctx.refresh();
+        });
       });
     }
 
@@ -231,9 +235,11 @@ const MaintenanceScreens = (function () {
           UI.showErrors(main.querySelector('#expense-errors'), result.errors);
           return;
         }
-        ctx.save();
-        ctx.toast('Despesa registrada.');
-        ctx.refresh();
+        ctx.save().then(ok => {
+          if (!ok) return;
+          ctx.toast('Despesa registrada.');
+          ctx.refresh();
+        });
       });
 
       main.querySelector('#conclude-form').addEventListener('submit', event => {
@@ -245,9 +251,11 @@ const MaintenanceScreens = (function () {
           UI.showErrors(main.querySelector('#conclude-errors'), result.errors);
           return;
         }
-        ctx.save();
-        ctx.toast('Manutenção concluída.');
-        ctx.refresh();
+        ctx.save().then(ok => {
+          if (!ok) return;
+          ctx.toast('Manutenção concluída.');
+          ctx.refresh();
+        });
       });
     }
   }

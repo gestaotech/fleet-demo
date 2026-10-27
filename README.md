@@ -1,160 +1,234 @@
-# Gestão de Frota — Gestão Tech
+# Demonstração de Frota — Gestão Tech
 
-Base em evolução para o sistema de gestão de frota da **Tarcísio Araújo Transportes**, desenvolvido pela **Gestão Tech**.
+Sistema de gestão de frota para **Tarcísio Araújo Transportes**, desenvolvido pela **Gestão Tech**.
 
-> **Estado atual:** a Fase 1 estabelece a fundação técnica (Next.js, React, TypeScript, Prisma, PostgreSQL, autenticação, sessões, permissões e auditoria). Ela **não representa ainda a migração completa** das telas e dos módulos operacionais do protótipo legado. Não use este repositório como produção sem concluir a configuração, os testes e as revisões de segurança.
+> **Todos os dados são fictícios.** Placas, nomes, peças e valores foram criados para a demonstração.
+> Não use dados reais de clientes neste ambiente.
 
-Todos os dados do protótipo legado são fictícios. Não coloque credenciais, tokens, dados pessoais reais ou segredos no Git.
+## Stack
 
-## Tecnologias da fundação
+- **Interface:** HTML, CSS e JavaScript puro (sem React, Next.js, TypeScript ou Prisma).
+- **Backend:** funções serverless em JavaScript (CommonJS) na pasta `api/`, publicadas pela Vercel.
+- **Banco:** PostgreSQL no **Neon**, acessado somente pelo servidor (`@neondatabase/serverless`).
+- **Sessão:** token aleatório em cookie `HttpOnly`; no banco fica apenas o hash SHA-256 do token.
+- **Senhas:** `scrypt` nativo do Node.js, com salt individual.
 
-- Next.js e React com TypeScript estrito.
-- PostgreSQL via Prisma ORM.
-- Sessões assinadas com JWT em cookie HttpOnly e validação da sessão no banco.
-- Argon2 para verificação de hashes de senha.
-- Zod para validação de entradas.
-- Vitest para testes TypeScript; Node.js `node:test` para a suíte do protótipo legado.
+## Estado atual da migração
 
-## Requisitos
-
-- Node.js compatível com a versão definida pelo ambiente de desenvolvimento/implantação.
-- npm.
-- PostgreSQL acessível para executar migrações e testes de integração.
-- Variáveis de ambiente configuradas a partir de `.env.example`.
-
-## Configuração local
-
-1. Instale as dependências:
-
-   ```bash
-   npm install
-   ```
-
-2. Copie `.env.example` para `.env` (ou `.env.local`, conforme seu ambiente) e preencha as variáveis. **Não comite o arquivo com valores reais.**
-3. Gere o cliente Prisma:
-
-   ```bash
-   npm run db:generate
-   ```
-
-4. Valide o schema:
-
-   ```bash
-   npm run db:validate
-   ```
-
-5. Em um banco de desenvolvimento descartável, aplique as migrações:
-
-   ```bash
-   npm run db:migrate
-   ```
-
-6. Inicie o servidor Next.js:
-
-   ```bash
-   npm run dev
-   ```
-
-Abra `http://localhost:3000`.
-
-### Variáveis de ambiente
-
-| Variável | Uso |
+| Área | Situação |
 |---|---|
-| `DATABASE_URL` | URL PostgreSQL usada pelo Prisma para as conexões da aplicação. |
-| `DIRECT_DATABASE_URL` | URL direta PostgreSQL usada pelo Prisma nas operações que precisam de conexão direta e nas migrações. |
-| `SESSION_SECRET` | Segredo aleatório para assinar/verificar tokens de sessão; use pelo menos 32 caracteres em produção. |
-| `SESSION_TTL_HOURS` | Duração da sessão em horas; padrão do código: 8. |
-| `TEST_DATABASE_URL` | Banco PostgreSQL separado para testes de integração, quando esses testes forem configurados para usá-lo. |
-| `ALLOW_SEED` | Deve ser explicitamente definido como `true` para permitir a execução do seed. |
-| `SEED_ADMIN_EMAIL` | E-mail do administrador inicial para o seed. |
-| `SEED_ADMIN_NAME` | Nome do administrador inicial para o seed. |
-| `SEED_ADMIN_PASSWORD` | Senha inicial do administrador; o seed exige no mínimo 12 caracteres. |
-| `SEED_RESET_PASSWORD` | Só use `true` conscientemente para permitir que o seed redefina uma senha existente. |
+| Login, logout e sessão no servidor | **Integrado** (cookies seguros, CSRF, bloqueio por tentativas, expiração e revogação) |
+| Usuários e permissões por módulo | **Integrado** (criação, edição, ativação, troca de senha; validação no servidor) |
+| Persistência dos dados operacionais | **Integrado ao banco** via `fleet_workspace_state` (estado por empresa, com revisão) |
+| Controle de atualizações simultâneas | **Integrado** (gravação recusada com 409 quando a revisão está desatualizada) |
+| Auditoria | **Integrada** (login, usuários, alterações de estado; tabela imutável por gatilho) |
+| Regras de negócio da demonstração | **Preservadas** (mesmos módulos em `js/core`, com testes de regressão) |
+| Validação de integridade no servidor | **Integrada** (referências, quantidades positivas, estoque não negativo) |
+| Neon em produção | **Pendente**: o código foi testado com PostgreSQL local; a conexão ao Neon ainda não foi validada (ver *Limitações*) |
+| Publicação na Vercel | **Pendente**: não há deploy realizado |
 
-Gere um segredo local com:
+A migração **ainda não está concluída** do ponto de vista de arquitetura final: os dados operacionais são
+guardados como um estado JSON por empresa (decisão para migrar sem reescrever os módulos). Tabelas
+relacionais por entidade (veículos, peças, movimentações etc.) são o próximo passo recomendado.
+
+## Estrutura
+
+```
+index.html                   interface (uma página, rotas por hash)
+css/                         estilos
+js/                          interface e regras
+  api.js                     cliente HTTP (CSRF, erros padronizados)
+  storage.js                 estado operacional via API (sem LocalStorage)
+  app.js                     boot, sessão, login, fila de gravação
+  modules/                   telas (administrador, veículos, manutenção, óleo, combustível, almoxarifado, relatórios)
+  core/                      regras de negócio puras (custos, consumo, óleo, saldo, períodos)
+api/v1/                      funções serverless
+  health.js                  verificação do banco
+  auth/login.js              POST   login
+  auth/logout.js             POST   logout
+  auth/session.js            GET    sessão atual
+  workspace.js               GET/PUT estado operacional
+  users/index.js             GET/POST usuários da empresa
+  users/[id].js              PATCH  editar usuário
+lib/                         código compartilhado do servidor
+database/migrations/         SQL versionado (001, 002, 003)
+scripts/                     migrações, seed, criação de administrador, servidor local, verificações
+tests/                       testes unitários, de integração e legados
+vercel.json                  cabeçalhos de segurança (CSP, HSTS etc.) e limites das funções
+```
+
+## 1. Instalação local
+
+Requisitos: **Node.js 22 ou superior** e npm.
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+npm install
+cp .env.example .env.local      # Windows: copie o arquivo e edite pelo editor
 ```
 
-Não reutilize o segredo de desenvolvimento em produção. Não habilite o seed em produção.
+Preencha `.env.local` (veja a seção 3). Nunca versione este arquivo.
 
-## Comandos úteis
+## 2. Configurar o Neon
+
+1. Crie um projeto no Neon e, dentro dele, um banco para desenvolvimento (ex.: `fleet_demo_dev`).
+2. Crie também um **banco de teste separado** (ex.: `fleet_demo_teste`). Os testes de integração apagam o schema público desse banco.
+3. Copie as connection strings (formato `postgresql://...?sslmode=require`).
+4. Use a string **com pooler** em `DATABASE_URL` (funções serverless) e, se quiser, a direta em `MIGRATION_DATABASE_URL`.
+
+## 3. Variáveis de ambiente
+
+Todas estão documentadas em `.env.example`. Resumo:
+
+| Variável | Obrigatória | Uso |
+|---|---|---|
+| `DATABASE_URL` | sim | Banco usado pelas funções `/api` (Neon). Só no servidor. |
+| `MIGRATION_DATABASE_URL` | não | Banco para migrações e seed (padrão: `DATABASE_URL`). |
+| `IP_HASH_SALT` | sim em produção | Salt do hash de IP nos registros. |
+| `SESSION_TTL_HOURS` | não | Validade da sessão (1 a 720 h; padrão 8). |
+| `TRUSTED_PROXY_HEADERS` | só na Vercel | `"true"` faz o limite de tentativas usar `x-forwarded-for`. |
+| `ALLOW_SEED`, `SEED_*` | só no seed | Seed de demonstração; recusado em produção. |
+| `TEST_DATABASE_URL`, `TEST_DATABASE_RESET` | só nos testes de integração | Banco descartável. `TEST_DATABASE_RESET=sim` é obrigatório. |
+| `PORT` | não | Porta do `npm start` (padrão 8080). |
+
+## 4. Migrações
 
 ```bash
-npm run dev             # servidor de desenvolvimento
-npm run build           # gera Prisma Client e compila o Next.js
-npm start               # inicia a versão compilada
-npm run lint             # ESLint
-npm run typecheck        # verificação TypeScript
-npm run db:generate      # gera Prisma Client
-npm run db:validate      # valida o schema Prisma
-npm run db:migrate       # migra banco de desenvolvimento
-npm run db:deploy        # aplica migrações existentes no ambiente alvo
-npm test                 # testes TypeScript reconhecidos pelo Vitest
-npm run test:legacy      # testes JavaScript do protótipo com node:test
-npm run test:all         # executa as duas suítes em sequência
-npm run test:unit        # testes unitários TypeScript
-npm run test:integration # testes de integração TypeScript
-npm run test:security    # testes de segurança TypeScript
+npm run db:migrate
 ```
 
-**Atenção aos testes:** o Vitest está configurado para arquivos `tests/**/*.test.ts`; os testes `.test.js` pertencem à suíte legada e precisam ser executados com `npm run test:legacy`. A suíte de integração depende de banco de teste real e de configuração explícita. Nunca aponte testes para dados de clientes ou produção.
+- Aplica os arquivos de `database/migrations/` em ordem, cada um em transação.
+- Registra o checksum de cada migração em `schema_migrations`. Se uma migração já aplicada for
+  alterada, o comando para com erro: crie uma **nova** migração em vez de editar a antiga.
+- Rodar de novo não altera nada quando o banco já está atualizado.
 
-## Estrutura da fundação atual
+## 5. Primeiro acesso
 
-```
-src/
-  app/                         # rotas Next.js, páginas e endpoints
-    (auth)/login/              # entrada e ação de login
-    (auth)/select-company/     # seleção da empresa ativa
-    (dashboard)/dashboard/     # área autenticada inicial
-    api/v1/                    # endpoints versionados
-  config/permissions.ts        # catálogo de permissões por módulo
-  lib/
-    auth/                      # autenticação, sessões, guards e consultas
-    audit/                     # serviço de auditoria
-    db/prisma.ts               # instância compartilhada do Prisma
-    security/                  # utilitários relacionados à segurança
-    validations/               # schemas de validação
-  modules/vehicles/rules/      # regras de negócio portadas para TypeScript
-prisma/
-  schema.prisma                # modelos, relações e enums
-  migrations/                  # migrações versionadas
-  seed.ts                      # seed protegido por variáveis de ambiente
-tests/
-  unit/                        # testes unitários TypeScript
-  security/                    # testes de segurança TypeScript
-  *.test.js                    # testes do protótipo legado
+### Desenvolvimento e demonstração (seed)
+
+```bash
+ALLOW_SEED=true SEED_ADMIN_PASSWORD="senha-com-10-ou-mais" npm run db:seed
 ```
 
-Os arquivos `index.html`, `css/` e `js/` permanecem no repositório como protótipo funcional legado. A presença deles não significa que as telas já foram migradas para Next.js.
+Cria a empresa de demonstração, o administrador com todos os módulos e o estado com dados fictícios.
+Não existe senha padrão. O seed não grava as antigas senhas `demo123`.
 
-## Segurança e arquitetura
+### Produção (sem estado de demonstração)
 
-- Todas as operações com dados de empresa devem validar a sessão, a associação ativa do usuário à empresa e as permissões no servidor. Ocultar itens na interface não substitui autorização no servidor.
-- Toda consulta ou alteração multiempresa deve ser limitada à empresa do contexto autenticado; não confiar em `companyId` enviado pelo navegador sem validar o vínculo.
-- Manter segredos fora do Git e usar cookies seguros em produção.
-- Tratar auditoria e falhas de auditoria explicitamente conforme a criticidade da operação; não presumir que uma ação foi auditada sem confirmar a gravação.
-- A política de confiança para cabeçalhos de IP encaminhados precisa corresponder ao proxy/plataforma real de implantação.
-- As integrações futuras entre produtos Gestão Tech devem usar contratos de API definidos, autenticação segura, isolamento multiempresa, identificadores consistentes, auditoria e versionamento. Elas podem ser implementadas sob demanda, mas a arquitetura deve permitir essa evolução.
+```bash
+CONFIRMAR_CRIACAO_ADMIN=sim ADMIN_LOGIN=joao.admin ADMIN_NOME="João Administrador" \
+ADMIN_SENHA="senha-forte-de-10-ou-mais" EMPRESA_NOME="Nome da Empresa" EMPRESA_SLUG="nome-da-empresa" \
+npm run db:criar-admin
+```
 
-## Regras do protótipo que devem ser preservadas
+- Use variáveis apenas na sessão do terminal, sem gravá-las em arquivos.
+- O script não altera usuário existente e nunca imprime a senha.
+- Depois, crie os demais usuários pela tela **Administrador > Usuários e permissões**.
 
-A migração dos módulos precisa manter, com testes, pelo menos estas regras:
+## 6. Rodar localmente
 
-- Retiradas de almoxarifado não podem deixar o estoque negativo; peças externas não alteram o saldo interno.
-- Custos históricos registrados não mudam quando o preço atual do catálogo muda.
-- Consumo de combustível deve usar registros válidos de tanque cheio e informar quando não houver dados suficientes.
-- A troca de óleo vence pelo primeiro limite atingido: quilometragem ou tempo.
-- Custos de manutenção, combustível e troca de óleo não podem ser contados duas vezes.
-- Histórico, filtros de período e isolamento entre empresas precisam ser preservados.
+```bash
+npm start            # http://localhost:8080 (interface + rotas /api simuladas)
+```
 
-## Estado da Fase 1 e próximos passos
+`npm start` usa `scripts/serve.js`, que reproduz o roteamento da Vercel sem a CLI. Requer `DATABASE_URL`.
 
-A Fase 1 é a fundação, não a entrega de todos os módulos operacionais. Antes de avançar, valide em ambiente controlado: instalação limpa, variáveis, Prisma/migrações, lint, TypeScript, build, suítes de teste, login/logout, expiração/revogação de sessão, permissões, isolamento entre empresas e auditoria. Registre os resultados reais no pull request; não considere uma verificação concluída sem executá-la.
+Para o ambiente da Vercel (com o runtime real das funções):
 
-## Protótipo legado — acesso demonstrativo
+```bash
+npx vercel link      # uma vez, com login na Vercel
+npm run dev          # vercel dev
+```
 
-O protótipo em `index.html` usa dados locais fictícios e autenticação simulada. As credenciais demonstrativas descritas nos materiais do protótipo **não são credenciais da fundação Next.js** e não devem ser reutilizadas em produção. O LocalStorage do navegador não é banco compartilhado e não fornece segurança multiempresa.
+## 7. Testes
+
+| Comando | O que verifica | Requisitos |
+|---|---|---|
+| `npm test` | Testes unitários: segurança, HTTP, validação de estado e usuários, imports entre módulos | nenhum |
+| `npm run test:legacy` | Regras da demonstração (custos, consumo, óleo, almoxarifado, relatórios), roteamento e cliente de API | nenhum |
+| `npm run test:integration` | API real contra PostgreSQL: login, CSRF, permissões, concorrência, invariantes, auditoria imutável, isolamento entre empresas, usuários, falha do banco | `TEST_DATABASE_URL` e `TEST_DATABASE_RESET=sim` |
+| `npm run build` | Arquivos obrigatórios e migrações presentes | nenhum |
+| `npm run test:all` | build + legados + unitários + integração | todos |
+
+Para a integração, use um banco **descartável**. O script recusa rodar se `TEST_DATABASE_URL` for igual a `DATABASE_URL`.
+
+Alternativa local sem Neon: qualquer PostgreSQL 14+ acessível (instalado ou em contêiner) serve para os testes e para o desenvolvimento. O driver `pg` é usado automaticamente para hosts que não são `*.neon.tech`.
+
+```bash
+TEST_DATABASE_URL="postgresql://postgres:SENHA@localhost:5432/fleet_test" TEST_DATABASE_RESET=sim npm run test:integration
+```
+
+## 8. Publicar na Vercel
+
+1. Importe o repositório `gestaotech/fleet-demo` no painel da Vercel.
+2. **Root Directory:** raiz do repositório. **Framework Preset:** *Other*. Não configure build de Next.js.
+3. Em **Settings > Environment Variables**, cadastre `DATABASE_URL` (Preview e Production, conforme o caso),
+   `IP_HASH_SALT`, `SESSION_TTL_HOURS` (opcional) e `TRUSTED_PROXY_HEADERS=true`.
+   Não cadastre `TEST_DATABASE_*` nem `ALLOW_SEED` em produção.
+4. Faça o deploy de uma **branch de preview** primeiro.
+5. Antes de promover para produção, confira o endpoint de saúde (seção 9).
+6. Em produção, crie o primeiro administrador com `npm run db:criar-admin` (apontando `MIGRATION_DATABASE_URL`
+   para a conexão de produção), **uma única vez**.
+
+As migrações não rodam automaticamente no deploy: execute `npm run db:migrate` com a conexão de produção
+antes de liberar a nova versão, depois do backup/ponto de restauração do Neon.
+
+## 9. Verificar o endpoint de saúde
+
+```bash
+curl https://SEU-DOMINIO/api/v1/health
+```
+
+- `200` com `{"ok":true,"service":"fleet-demo-api","database":"connected"}`: função e banco respondem.
+- `503` com `"database":"not_configured"`: `DATABASE_URL` não está definida.
+- `503` com `"database":"unavailable"`: o banco não respondeu. A causa não é exposta na resposta.
+
+## 10. Segurança (resumo)
+
+- Autorização sempre no servidor: sessão validada no banco a cada request, permissão por módulo e
+  `companyId` vindo da sessão, nunca do navegador.
+- Sessão: token aleatório de 256 bits, só o hash no banco, cookie `HttpOnly`, `Secure` e `SameSite=Lax`,
+  expiração e revogação imediatas (logout, desativação, troca de senha, remoção de vínculo).
+- CSRF por duplo envio + verificação de origem em toda alteração.
+- Limite de tentativas no PostgreSQL (5 por login e 30 por IP em 15 minutos, bloqueio de 15 minutos).
+- Respostas de login idênticas para usuário inexistente, senha errada e usuário inativo.
+- Auditoria append-only (gatilho no banco impede `UPDATE` e `DELETE`). Metadados sem senha, token ou cookie.
+- Cabeçalhos: CSP restritiva, HSTS, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`.
+- Erros internos nunca são devolvidos ao cliente; o banco é reportado como `indisponível` sem detalhes.
+
+Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
+
+## 11. Limitações conhecidas
+
+1. **Neon validado.** O adaptador HTTP do Neon (`lib/db.js`) foi testado contra o banco Neon real:
+   migrações aplicadas (001, 002, 003), seed executado, health retorna `"database": "connected"`,
+   login funciona e os 35 testes de integração passaram contra um banco de teste no Neon.
+2. **Estado operacional em JSON por empresa.** Gravar o estado inteiro é simples e seguro contra conflitos,
+   mas não permite consultas relacionais nem permissões de leitura por coleção (a leitura é da empresa inteira;
+   a escrita é controlada por módulo).
+3. **Limite de tentativas e bloqueios** são persistidos por chave de tempo; em alta concorrência podem
+   existir poucas tentativas além do limite.
+4. **Último administrador:** a regra é verificada antes da gravação. Duas edições simultâneas e opostas
+   podem, em tese, passar pela verificação (ver `api/v1/users/[id].js`).
+5. **Login global:** o nome de acesso é único em toda a plataforma (não por empresa).
+6. **Uma empresa ativa por sessão:** a troca de empresa ainda não tem tela; o login escolhe o primeiro vínculo ativo.
+7. **Sem ação de reset de senha** pela interface: o administrador redefine a senha do usuário.
+8. **Interface:** as telas de manutenção, combustível e relatórios continuam as mesmas da demonstração;
+   foram testadas nos fluxos de cadastro, gravação e permissão, mas não há teste automatizado de navegador.
+9. **Publicação:** nenhum deploy foi feito. Não há ambiente publicado para o cliente. O código está pronto para deploy na Vercel (ver seção 8).
+10. **Exclusão de registros:** a interface não remove registros (apenas desativa usuários e veículos). A exclusão
+    autorizada precisa ser planejada antes de ser exposta ao cliente.
+11. **Validação parcial de regras no servidor:** a API valida formato, referências e estoque, mas não todas as
+    regras específicas de cada módulo (consumo de combustível, vencimento de óleo). A interface continua
+    aplicando essas regras.
+12. **Conflito de gravação:** quando a revisão está defasada, a alteração local é bloqueada e pode ser baixada
+    em JSON pela interface (botão "Baixar alterações não salvas"). O usuário precisa recarregar a página e reaplicar
+    manualmente.
+
+## 12. Próximas etapas
+
+1. Validar o Neon: migrar, criar o administrador e rodar `npm run test:integration` contra um banco de teste do Neon.
+2. Publicar um preview na Vercel e validar `/api/v1/health` e o fluxo de login.
+3. Migrar o estado JSON para tabelas relacionais por entidade, mantendo as regras de `js/core`.
+4. Testes de navegador (ponta a ponta) para os fluxos principais.
+5. Troca de empresa para usuários com vínculo em mais de uma empresa.
+6. Limpeza periódica automatizada (cron) para sessões e tentativas expiradas.

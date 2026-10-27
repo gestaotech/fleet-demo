@@ -214,9 +214,11 @@ const FuelScreens = (function () {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);
         return;
       }
-      ctx.save();
-      ctx.toast(editing ? 'Abastecimento corrigido.' : 'Abastecimento registrado.');
-      ctx.go('#/combustivel');
+      ctx.save().then(ok => {
+        if (!ok) return;
+        ctx.toast(editing ? 'Abastecimento corrigido.' : 'Abastecimento registrado.');
+        ctx.go('#/combustivel');
+      });
     });
   }
 
