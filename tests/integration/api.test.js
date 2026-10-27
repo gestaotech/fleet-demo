@@ -520,6 +520,6 @@ describe("falhas do banco", () => {
   it("health confirma a conexão quando o banco responde", async () => {
     const saude = await h.requisitar("GET", "/api/v1/health");
     assert.equal(saude.status, 200);
-    assert.deepEqual(saude.json, { ok: true, service: "fleet-demo-api", database: "connected" });
+    assert.deepEqual(saude.json, { ok: true, service: "fleet-demo-api", database: "connected", configuracao: "ok" });
   });
 });
