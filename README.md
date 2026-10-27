@@ -215,6 +215,14 @@ Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
 8. **Interface:** as telas de manutenção, combustível e relatórios continuam as mesmas da demonstração;
    foram testadas nos fluxos de cadastro, gravação e permissão, mas não há teste automatizado de navegador.
 9. **Publicação:** nenhum deploy foi feito. Não há ambiente publicado para o cliente.
+10. **Exclusão de registros:** a interface não remove registros (apenas desativa usuários e veículos). A exclusão
+    autorizada precisa ser planejada antes de ser exposta ao cliente.
+11. **Validação parcial de regras no servidor:** a API valida formato, referências e estoque, mas não todas as
+    regras específicas de cada módulo (consumo de combustível, vencimento de óleo). A interface continua
+    aplicando essas regras.
+12. **Conflito de gravação:** quando a revisão está defasada, a alteração local é bloqueada e pode ser baixada
+    em JSON pela interface (botão "Baixar alterações não salvas"). O usuário precisa recarregar a página e reaplicar
+    manualmente.
 
 ## 12. Próximas etapas
 
@@ -223,3 +231,4 @@ Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
 3. Migrar o estado JSON para tabelas relacionais por entidade, mantendo as regras de `js/core`.
 4. Testes de navegador (ponta a ponta) para os fluxos principais.
 5. Troca de empresa para usuários com vínculo em mais de uma empresa.
+6. Limpeza periódica automatizada (cron) para sessões e tentativas expiradas.
