@@ -199,9 +199,9 @@ Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
 
 ## 11. Limitações conhecidas
 
-1. **Neon não validado ainda.** O adaptador HTTP do Neon (`lib/db.js`) segue a tipagem do pacote
-   `@neondatabase/serverless`, mas não foi executado contra um banco Neon real. Os testes automatizados
-   usam PostgreSQL local com o driver `pg`. Validar com `/api/v1/health` e `npm run db:migrate` em um banco de teste do Neon.
+1. **Neon validado.** O adaptador HTTP do Neon (`lib/db.js`) foi testado contra o banco Neon real:
+   migrações aplicadas (001, 002, 003), seed executado, health retorna `"database": "connected"`,
+   login funciona e os 35 testes de integração passaram contra um banco de teste no Neon.
 2. **Estado operacional em JSON por empresa.** Gravar o estado inteiro é simples e seguro contra conflitos,
    mas não permite consultas relacionais nem permissões de leitura por coleção (a leitura é da empresa inteira;
    a escrita é controlada por módulo).
@@ -214,7 +214,7 @@ Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
 7. **Sem ação de reset de senha** pela interface: o administrador redefine a senha do usuário.
 8. **Interface:** as telas de manutenção, combustível e relatórios continuam as mesmas da demonstração;
    foram testadas nos fluxos de cadastro, gravação e permissão, mas não há teste automatizado de navegador.
-9. **Publicação:** nenhum deploy foi feito. Não há ambiente publicado para o cliente.
+9. **Publicação:** nenhum deploy foi feito. Não há ambiente publicado para o cliente. O código está pronto para deploy na Vercel (ver seção 8).
 10. **Exclusão de registros:** a interface não remove registros (apenas desativa usuários e veículos). A exclusão
     autorizada precisa ser planejada antes de ser exposta ao cliente.
 11. **Validação parcial de regras no servidor:** a API valida formato, referências e estoque, mas não todas as
