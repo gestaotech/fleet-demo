@@ -126,9 +126,11 @@ const WarehouseScreens = (function () {
         button.disabled = false;
         return;
       }
-      ctx.save();
-      ctx.toast('Retirada confirmada e saldo atualizado.');
-      onDone(result.value);
+      ctx.save().then(ok => {
+        if (!ok) return;
+        ctx.toast('Retirada confirmada e saldo atualizado.');
+        onDone(result.value);
+      });
     });
   }
 
@@ -172,9 +174,11 @@ const WarehouseScreens = (function () {
         button.disabled = false;
         return;
       }
-      ctx.save();
-      ctx.toast('Peça externa registrada. O saldo do almoxarifado não foi alterado.');
-      onDone(result.value);
+      ctx.save().then(ok => {
+        if (!ok) return;
+        ctx.toast('Peça externa registrada. O saldo do almoxarifado não foi alterado.');
+        onDone(result.value);
+      });
     });
   }
 
@@ -284,9 +288,11 @@ const WarehouseScreens = (function () {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);
         return;
       }
-      ctx.save();
-      ctx.toast(editing ? 'Peça atualizada.' : 'Peça cadastrada.');
-      ctx.go('#/almoxarifado/estoque');
+      ctx.save().then(ok => {
+        if (!ok) return;
+        ctx.toast(editing ? 'Peça atualizada.' : 'Peça cadastrada.');
+        ctx.go('#/almoxarifado/estoque');
+      });
     });
   }
 
@@ -323,9 +329,11 @@ const WarehouseScreens = (function () {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);
         return;
       }
-      ctx.save();
-      ctx.toast('Entrada registrada e saldo atualizado.');
-      ctx.go('#/almoxarifado/estoque');
+      ctx.save().then(ok => {
+        if (!ok) return;
+        ctx.toast('Entrada registrada e saldo atualizado.');
+        ctx.go('#/almoxarifado/estoque');
+      });
     });
   }
 

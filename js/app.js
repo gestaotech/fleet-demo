@@ -1,6 +1,19 @@
-/* Inicialização, casca da aplicação (cabeçalho, menu, rodapé), login e página inicial. */
+/*
+ * Inicialização, casca da aplicação (cabeçalho, menu, rodapé), login e página inicial.
+ *
+ * Fluxo: GET /auth/session -> (se logado) GET /workspace -> renderização.
+ * Toda gravação passa por uma fila: uma alteração só é confirmada ao usuário depois
+ * que o servidor responde OK. Em conflito de revisão (409) as gravações são bloqueadas
+ * até a página ser recarregada, para não sobrescrever dados de outro usuário.
+ */
 const App = (function () {
   let state = null;
+  let revision = 0;
+  let session = null;
+  let loadError = '';
+  let saveChain = Promise.resolve(true);
+  let conflictBlocked = false;
+  let syncBanner = '';
   let pendingHash = '#/';
 
   const PAGES = {
@@ -74,20 +87,61 @@ const App = (function () {
     { id: 'relatorios', numero: '6', titulo: 'Relatórios', texto: 'Oito relatórios, incluindo combustível e trocas de óleo.' },
   ];
 
+  function currentUser() {
+    if (!session) return null;
+    return {
+      id: session.usuario.id,
+      nome: session.usuario.nome,
+      ativo: true,
+      permissoes: session.permissoes,
+    };
+  }
+
+  /*
+   * Grava o estado no servidor, uma gravação por vez. Resolve true somente quando o
+   * servidor confirmou. Quem chama deve mostrar sucesso apenas quando o retorno for true.
+   */
+  function persist() {
+    const job = saveChain.then(async () => {
+      if (conflictBlocked) {
+        UI.toast('Os dados foram alterados por outro usuário. Recarregue a página antes de continuar.', 'error');
+        return false;
+      }
+      const result = await Storage.save(state, revision);
+      if (result.ok) {
+        revision = result.revision;
+        syncBanner = '';
+        refreshBanner();
+        return true;
+      }
+      if (result.status === 401) {
+        session = null;
+        state = null;
+        UI.toast('Sua sessão expirou. Entre novamente; a alteração não foi salva.', 'error');
+        route();
+        return false;
+      }
+      if (result.status === 409) {
+        conflictBlocked = true;
+        syncBanner = 'Os dados foram alterados por outro usuário. As gravações estão bloqueadas: recarregue a página para ver a versão atual.';
+      } else {
+        syncBanner = `Não foi possível salvar: ${result.error.message} A alteração não foi gravada.`;
+      }
+      refreshBanner();
+      UI.toast(result.status === 409 ? 'Dados desatualizados. Recarregue a página.' : `Não foi possível salvar: ${result.error.message}`, 'error');
+      return false;
+    });
+    saveChain = job.catch(() => false);
+    return job;
+  }
+
   const ctx = {
     get state() { return state; },
     get user() { return currentUser(); },
-    save() {
-      const result = Storage.save(state);
-      if (!result.ok) {
-        UI.toast(result.errors[0], 'error');
-        return false;
-      }
-      return true;
-    },
+    save() { return persist(); },
     setState(next) {
       state = next;
-      ctx.save();
+      return persist();
     },
     go(hash) {
       if (location.hash === hash) route();
@@ -97,11 +151,12 @@ const App = (function () {
     toast: UI.toast,
   };
 
-  function currentUser() {
-    const id = Storage.readSession();
-    if (!id) return null;
-    const user = state.usuarios.find(u => u.id === id);
-    return user && user.ativo ? user : null;
+  function refreshBanner() {
+    const banner = document.getElementById('sync-banner');
+    if (banner) {
+      banner.textContent = syncBanner;
+      banner.hidden = !syncBanner;
+    }
   }
 
   function currentPath() {
@@ -120,6 +175,10 @@ const App = (function () {
               <span>Desenvolvido por Gestão Tech</span>
               <span class="muted">Dados fictícios, apenas para demonstração.</span>
             </footer>`;
+  }
+
+  function syncBannerHtml() {
+    return `<div id="sync-banner" class="sync-banner" role="alert" ${syncBanner ? '' : 'hidden'}>${UI.esc(syncBanner)}</div>`;
   }
 
   function headerHtml(user) {
@@ -156,20 +215,26 @@ const App = (function () {
       toggle.addEventListener('click', () => document.body.classList.toggle('nav-open'));
     }
     const logout = document.getElementById('logout-btn');
-    if (logout) {
-      logout.addEventListener('click', () => {
-        Storage.clearSession();
-        UI.toast('Sessão encerrada.');
-        location.hash = '#/';
-        route();
-      });
-    }
+    if (logout) logout.addEventListener('click', logout_);
+  }
+
+  async function logout_() {
+    await Api.post('/auth/logout');
+    session = null;
+    state = null;
+    revision = 0;
+    conflictBlocked = false;
+    syncBanner = '';
+    UI.toast('Sessão encerrada.');
+    location.hash = '#/';
+    route();
   }
 
   function renderPageWithShell(moduleId, path, render) {
     const user = currentUser();
     mount(`
       ${headerHtml(user)}
+      ${syncBannerHtml()}
       <div class="app-body">
         ${sidebarHtml(user)}
         <div class="content">
@@ -200,6 +265,7 @@ const App = (function () {
     }).join('');
     mount(`
       ${headerHtml(user)}
+      ${syncBannerHtml()}
       <main class="home">
         <section class="hero">
           <img src="assets/logo-tarcisio.jpeg" alt="Logo Tarcísio Araújo Transportes" class="hero-logo">
@@ -213,36 +279,64 @@ const App = (function () {
       ${footerHtml()}`);
   }
 
-  function renderLogin() {
+  function renderLogin(mensagem = '') {
     mount(`
       ${headerHtml(null)}
       <main class="login-wrap">
         <form class="card login-card" id="login-form" novalidate>
           <h1>Entrar na demonstração</h1>
-          <div class="form-errors" id="login-errors"></div>
+          <div class="form-errors" id="login-errors">${mensagem ? UI.esc(mensagem) : ''}</div>
           <label class="field">Usuário<input name="login" autocomplete="username" required></label>
           <label class="field">Senha<input name="senha" type="password" autocomplete="current-password" required></label>
-          <button class="btn btn-primary btn-block" type="submit">Entrar</button>
-          <p class="hint">Acesso fictício de demonstração: usuário <code>admin</code>, senha <code>demo123</code>.
-            Em produção, a autenticação ocorre no servidor.</p>
+          <button class="btn btn-primary btn-block" type="submit" id="login-submit">Entrar</button>
+          <p class="hint">A autenticação é feita no servidor. Use o usuário e a senha cadastrados pelo administrador da demonstração.</p>
         </form>
       </main>
       ${footerHtml()}`);
 
-    document.getElementById('login-form').addEventListener('submit', event => {
+    document.getElementById('login-form').addEventListener('submit', async event => {
       event.preventDefault();
-      const data = UI.readForm(event.currentTarget);
-      const result = Access.authenticate(state, data.login, data.senha);
-      if (!result.ok) {
-        UI.showErrors(document.getElementById('login-errors'), result.errors);
+      const form = event.currentTarget;
+      const botao = document.getElementById('login-submit');
+      const errosEl = document.getElementById('login-errors');
+      const data = UI.readForm(form);
+      botao.disabled = true;
+      botao.textContent = 'Entrando...';
+      const resposta = await Api.post('/auth/login', { login: data.login, senha: data.senha });
+      if (!resposta.ok) {
+        botao.disabled = false;
+        botao.textContent = 'Entrar';
+        UI.showErrors(errosEl, [resposta.error.message]);
         return;
       }
-      Storage.saveSession(result.value.id);
-      UI.toast(`Bem-vindo, ${result.value.nome}.`);
+      session = { usuario: resposta.data.usuario, empresa: resposta.data.empresa, permissoes: resposta.data.permissoes };
+      await carregarEstado();
+      if (!state) {
+        renderLoadError();
+        return;
+      }
+      UI.toast(`Bem-vindo, ${session.usuario.nome}.`);
       const destination = pendingHash && pendingHash !== '#/login' ? pendingHash : '#/';
       pendingHash = '#/';
       location.hash = destination;
       if (location.hash === destination) route();
+    });
+  }
+
+  function renderLoadError() {
+    mount(`
+      ${headerHtml(currentUser())}
+      <main class="login-wrap">
+        <section class="card login-card">
+          <h1>Não foi possível carregar os dados</h1>
+          <p>${UI.esc(loadError || 'Verifique sua conexão e tente novamente.')}</p>
+          <button type="button" class="btn btn-primary btn-block" id="retry-load">Tentar novamente</button>
+        </section>
+      </main>
+      ${footerHtml()}`);
+    document.getElementById('retry-load').addEventListener('click', async () => {
+      await carregarEstado();
+      route();
     });
   }
 
@@ -259,7 +353,13 @@ const App = (function () {
   }
 
   function route() {
-    if (!state) return;
+    if (session && !state) {
+      renderLoadError();
+      return;
+    }
+    if (!session && location.hash && Router.normalizeHash(location.hash) !== '/login') {
+      pendingHash = location.hash;
+    }
     const resolved = Router.resolve(location.hash, currentUser());
 
     if (resolved.kind === 'redirect') {
@@ -294,10 +394,33 @@ const App = (function () {
     renderPageWithShell(resolved.module, resolved.path, page => screen(page, resolved.params, ctx));
   }
 
-  function start() {
-    state = Storage.load();
-    if (!location.hash) history.replaceState(null, '', '#/');
+  async function carregarEstado() {
+    const resultado = await Storage.load();
+    if (!resultado.ok) {
+      if (resultado.status === 401) {
+        session = null;
+        state = null;
+        return;
+      }
+      loadError = resultado.error.message;
+      state = null;
+      return;
+    }
+    state = resultado.state;
+    revision = resultado.revision;
+    loadError = '';
+    conflictBlocked = false;
+  }
+
+  async function start() {
     window.addEventListener('hashchange', route);
+    document.getElementById('app').innerHTML = '<main class="login-wrap"><p class="muted center">Carregando…</p></main>';
+    const sessao = await Api.get('/auth/session');
+    if (sessao.ok) {
+      session = { usuario: sessao.data.usuario, empresa: sessao.data.empresa, permissoes: sessao.data.permissoes };
+      await carregarEstado();
+    }
+    if (!location.hash) history.replaceState(null, '', '#/');
     route();
   }
 

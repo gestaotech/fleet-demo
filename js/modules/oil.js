@@ -220,9 +220,11 @@ const OilScreens = (function () {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);
         return;
       }
-      ctx.save();
-      ctx.toast(editing ? 'Troca de óleo atualizada.' : 'Troca de óleo registrada.');
-      ctx.go('#/manutencao/oleo');
+      ctx.save().then(ok => {
+        if (!ok) return;
+        ctx.toast(editing ? 'Troca de óleo atualizada.' : 'Troca de óleo registrada.');
+        ctx.go('#/manutencao/oleo');
+      });
     });
   }
 
