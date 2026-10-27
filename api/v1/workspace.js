@@ -30,6 +30,7 @@ const {
   userAgent,
 } = require("../../lib/http");
 const { exigirSessao, exigirPermissao, exigirAlgumaPermissao } = require("../../lib/auth");
+const { registrarAuditoria } = require("../../lib/audit");
 const { MODULOS, COLECAO_MODULO } = require("../../lib/permissions");
 const {
   validarFormato,
@@ -70,7 +71,7 @@ WITH atualizado AS (
 SELECT revision FROM atualizado`;
 
 async function lerEstadoAtual(empresaId) {
-  const linhas = await consultar(SQL_LER_ESTADO, [empresaId]);
+  const linhas = await consultar(SQL_LER_ESTADO, [empresaId], { leitura: true });
   if (!linhas[0]) {
     throw new ApiError(404, "AREA_NAO_INICIALIZADA", "Os dados desta empresa ainda não foram inicializados.");
   }
@@ -110,6 +111,18 @@ async function responderGravacao(req, res, sessao) {
   for (const modulo of modulosNecessarios(alteradas)) {
     if (!MODULOS.includes(modulo) || !sessao.permissoes.includes(modulo)) {
       const colecoesNegadas = alteradas.filter((c) => COLECAO_MODULO[c] === modulo);
+      // Tentativas negadas também ficam registradas: são sinal relevante de uso indevido.
+      await registrarAuditoria({
+        acao: "ESTADO_NEGADO",
+        entidade: "fleet_workspace_state",
+        entidadeId: sessao.empresa.id,
+        resultado: "DENIED",
+        usuarioId: sessao.usuario.id,
+        empresaId: sessao.empresa.id,
+        metadados: { colecoes: colecoesNegadas, modulo },
+        ipHash: hashIp(req),
+        userAgent: userAgent(req),
+      });
       throw new ApiError(403, "SEM_PERMISSAO", `Seu perfil não pode alterar ${colecoesNegadas.join(", ")} (módulo ${NOMES_MODULO[modulo] || modulo}).`);
     }
   }

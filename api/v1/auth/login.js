@@ -31,8 +31,8 @@ const {
   COOKIE_CSRF,
 } = require("../../../lib/http");
 const { verifyPassword, verificarSenhaFicticia, gerarToken } = require("../../../lib/security");
-const { criarSessao, ttlHoras } = require("../../../lib/sessions");
-const { chavesDeLogin, estaBloqueado, registrarFalhas, limparFalhasDoLogin } = require("../../../lib/rate-limit");
+const { criarSessao, ttlHoras, removerSessoesAntigas } = require("../../../lib/sessions");
+const { chavesDeLogin, estaBloqueado, registrarFalhas, limparFalhasDoLogin, removerTentativasAntigas } = require("../../../lib/rate-limit");
 const { registrarAuditoria } = require("../../../lib/audit");
 
 const LOGIN_FORMATO = /^[a-z0-9._-]{3,20}$/;
@@ -76,6 +76,7 @@ async function handler(req, res) {
   const usuarios = await consultar(
     "SELECT id, login, name, cargo, password_hash, active FROM app_users WHERE login = $1",
     [login],
+    { leitura: true },
   );
   const usuario = usuarios[0];
 
@@ -113,6 +114,9 @@ async function handler(req, res) {
 
   await limparFalhasDoLogin(login);
   await consultar("UPDATE app_users SET last_login_at = NOW() WHERE id = $1", [usuario.id]);
+  // Limpeza de registros antigos: sessões expiradas e tentativas fora da janela.
+  // Falhas aqui não devem impedir o login, por isso são isoladas.
+  await Promise.allSettled([removerSessoesAntigas(), removerTentativasAntigas()]);
   await registrarAuditoria({
     acao: "LOGIN",
     entidade: "auth",
