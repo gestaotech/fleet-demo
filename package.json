@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vercel dev",
     "start": "node scripts/serve.js",
-    "build": "node scripts/check-static.js",
+    "build": "node scripts/check-static.js && node scripts/build-static.js",
     "db:migrate": "node scripts/migrate.js",
     "db:seed": "node scripts/seed.js",
     "db:criar-admin": "node scripts/criar-admin.js",
