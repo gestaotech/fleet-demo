@@ -7,6 +7,10 @@ const root = path.join(__dirname, "..");
 const output = path.join(root, "public");
 const staticEntries = ["index.html", "assets", "css", "js"];
 const fixtureRelativePath = path.join("js", "data.js");
+const setupHtml = path.join(root, "setup-admin.html");
+const setupOutput = path.join(output, "setup-admin.html");
+const bootstrapEnabled = typeof process.env.ADMIN_BOOTSTRAP_TOKEN === "string"
+  && process.env.ADMIN_BOOTSTRAP_TOKEN.length >= 32;
 
 fs.rmSync(output, { recursive: true, force: true });
 fs.mkdirSync(output, { recursive: true });
@@ -17,6 +21,19 @@ for (const entry of staticEntries) {
     throw new Error(`Arquivo/pasta estática obrigatória ausente: ${entry}`);
   }
   fs.cpSync(source, path.join(output, entry), { recursive: true });
+}
+
+/*
+ * A tela de bootstrap só entra no pacote se a variável temporária estiver
+ * configurada durante o build. Sem ela, o HTML não é publicado.
+ */
+if (bootstrapEnabled) {
+  if (!fs.existsSync(setupHtml)) {
+    throw new Error("ADMIN_BOOTSTRAP_TOKEN está configurado, mas setup-admin.html não existe.");
+  }
+  fs.copyFileSync(setupHtml, setupOutput);
+} else {
+  fs.rmSync(setupOutput, { force: true });
 }
 
 /*
@@ -43,6 +60,9 @@ listarArquivos(output);
 if (fs.existsSync(path.join(output, fixtureRelativePath))) {
   throw new Error("Fixture de desenvolvimento foi incluída no pacote público.");
 }
+if (!bootstrapEnabled && fs.existsSync(setupOutput)) {
+  throw new Error("A tela de configuração inicial não pode ser publicada sem ADMIN_BOOTSTRAP_TOKEN.");
+}
 for (const arquivo of arquivosPublicos) {
   const conteudo = fs.readFileSync(arquivo, "utf8");
   if (conteudo.includes("demo123")) {
@@ -51,3 +71,6 @@ for (const arquivo of arquivosPublicos) {
 }
 
 console.log("Arquivos estáticos copiados para public/ sem fixtures de desenvolvimento; as funções em api/ permanecem na raiz.");
+console.log(bootstrapEnabled
+  ? "Tela temporária de configuração inicial incluída; remova ADMIN_BOOTSTRAP_TOKEN e publique novamente após o uso."
+  : "Tela temporária de configuração inicial excluída do pacote público.");
