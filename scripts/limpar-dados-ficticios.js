@@ -95,7 +95,7 @@ async function main() {
     console.log("");
     console.log("Limpeza concluída. Estrutura e schema_migrations foram preservados.");
     for (const tabela of TABELAS) console.log(` - ${tabela}: 0`);
-    console.log("O banco agora precisa ser inicializado com um administrador real, usando scripts/db:criar-admin.");
+    console.log("O banco agora precisa ser inicializado com um administrador real, usando npm run db:criar-admin.");
   } finally {
     await client.end();
   }
