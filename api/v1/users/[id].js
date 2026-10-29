@@ -17,7 +17,7 @@
  */
 
 const { ApiError } = require("../../../lib/errors");
-const { consultar } = require("../../../lib/db");
+const { consultar, consultarTransacao } = require("../../../lib/db");
 const {
   comErros,
   exigirMetodo,
@@ -40,24 +40,19 @@ const SQL_BUSCAR = `
    WHERE m.user_id = $1::uuid AND m.company_id = $2::uuid`;
 
 /*
- * O lock e a decisão de autorização vivem na mesma instrução/transaction do PostgreSQL.
- * O SELECT final devolve a decisão quando o vínculo existe; quando permitido=false,
- * nenhuma tabela de usuário, vínculo, sessão ou auditoria é alterada.
+ * A autorização é calculada depois que a transação obtém o lock da empresa.
+ * Quando permitido=false, nenhuma tabela de usuário, vínculo, sessão ou auditoria é alterada.
  */
 const SQL_ATUALIZAR = `
-WITH trava AS MATERIALIZED (
-  SELECT pg_advisory_xact_lock(hashtextextended($7::text, 0)) AS obtida
-), estado_alvo AS MATERIALIZED (
+WITH estado_alvo AS MATERIALIZED (
   SELECT u.active AS usuario_ativo, m.active AS vinculo_ativo, m.permissions AS permissoes
     FROM company_memberships m
     JOIN app_users u ON u.id = m.user_id
-    CROSS JOIN trava
    WHERE m.user_id = $1::uuid AND m.company_id = $7::uuid
 ), outros_admins AS MATERIALIZED (
   SELECT COUNT(*)::int AS total
     FROM company_memberships m
     JOIN app_users u ON u.id = m.user_id
-    CROSS JOIN trava
    WHERE m.company_id = $7::uuid
      AND m.user_id <> $1::uuid
      AND m.active = TRUE AND u.active = TRUE
@@ -138,7 +133,9 @@ async function handler(req, res) {
   });
 
   const revogarSessoes = final.ativo === false || senha !== null;
-  const atualizado = await consultar(SQL_ATUALIZAR, [
+  const atualizado = await consultarTransacao([
+    { texto: "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))", parametros: [sessao.empresa.id] },
+    { texto: SQL_ATUALIZAR, parametros: [
     id,
     final.nome,
     final.cargo,
@@ -151,6 +148,7 @@ async function handler(req, res) {
     JSON.stringify({ camposAlterados }),
     hashIp(req),
     userAgent(req),
+    ] },
   ]);
 
   if (!atualizado[0]) {
