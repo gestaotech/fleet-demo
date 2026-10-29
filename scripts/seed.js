@@ -20,11 +20,8 @@
 
 require("../lib/load-env").carregarEnv();
 
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
 const { hashPassword, validarPoliticaSenha } = require("../lib/security");
-const { MODULOS } = require("../lib/permissions");
+const { MODULOS, COLECOES } = require("../lib/permissions");
 const { validarEstado } = require("../lib/workspace");
 
 function exigirAmbienteSeguro() {
@@ -120,7 +117,7 @@ async function main() {
         "INSERT INTO fleet_workspace_state (company_id, schema_version, state, revision, updated_by) VALUES ($1, 2, $2::jsonb, 1, $3)",
         [empresaId, JSON.stringify(estado), usuarioId],
       );
-      console.log("[seed] Estado operacional inicial criado (dados fictícios).");
+      console.log("[seed] Estado operacional inicial vazio criado (sem registros fictícios).");
     } else if (process.env.SEED_RESET_WORKSPACE === "true") {
       await client.query(
         "UPDATE fleet_workspace_state SET state = $2::jsonb, revision = revision + 1, updated_at = NOW() WHERE company_id = $1",
