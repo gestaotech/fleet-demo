@@ -36,7 +36,7 @@ css/                         estilos
 js/                          interface e regras
   api.js                     cliente HTTP (CSRF, erros padronizados)
   storage.js                 estado operacional via API (sem LocalStorage)
-  data.js                    fixture fictícia para seed/testes; excluída do pacote público
+  data.js                    fixture fictícia legada para testes internos; nunca usada no seed nem publicada
   app.js                     boot, sessão, login, fila de gravação
   modules/                   telas (administrador, veículos, manutenção, óleo, combustível, almoxarifado, relatórios)
   core/                      regras de negócio puras (custos, consumo, óleo, saldo, períodos)
