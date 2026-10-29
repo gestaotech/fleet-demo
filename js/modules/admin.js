@@ -1,4 +1,4 @@
-/* Telas do módulo Administrador: visão geral da frota, usuários e permissões, dados da demonstração.
+/* Telas do módulo Administrador: visão geral da frota, usuários e permissões, administração do sistema.
  * Usuários são lidos e gravados pela API (/api/v1/users). Senhas nunca voltam para o navegador. */
 const AdminScreens = (function () {
   const { esc, kpi, pageHeader, table, situacaoBadge, operacionalBadge, errorBox, readForm, option } = UI;
@@ -159,7 +159,7 @@ const AdminScreens = (function () {
   function settings(main, params, ctx) {
     const conf = Oil.configuracoes(ctx.state);
     main.innerHTML = `
-      ${pageHeader('Parâmetros da demonstração', 'Regras que podem ser ajustadas sem alterar o código.')}
+      ${pageHeader('Parâmetros da empresa', 'Regras que podem ser ajustadas sem alterar o código.')}
       <form class="card form-grid" id="settings-form" novalidate>
         <div class="form-errors full" id="form-errors"></div>
         <label class="field">Antecedência do alerta de troca de óleo (km)
@@ -198,14 +198,14 @@ const AdminScreens = (function () {
 
   function dataPage(main, params, ctx) {
     main.innerHTML = `
-      ${pageHeader('Dados da demonstração', 'Todos os dados são fictícios e servem apenas para apresentação.')}
+      ${pageHeader('Dados e inicialização', 'Restaurar ou inicializar os dados operacionais da empresa.')}
       <section class="card">
         <h2>Restaurar dados originais</h2>
-        <p>Substitui os dados operacionais desta empresa pelo conjunto inicial de dados fictícios, gravado no servidor.</p>
+        <p>Substitui os dados operacionais desta empresa pelo conjunto inicial de dados, gravado no servidor.</p>
         <button type="button" class="btn btn-danger" id="restore-data">Restaurar dados originais</button>
       </section>
       <section class="card">
-        <h2>Limitações desta demonstração</h2>
+        <h2>Informações sobre este sistema</h2>
         <ul>
           <li>Os dados ficam no banco da empresa, sem dados reais de clientes.</li>
           <li>Ao gravar, o sistema confirma a alteração apenas depois da resposta do servidor.</li>
