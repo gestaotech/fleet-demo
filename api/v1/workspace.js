@@ -52,6 +52,19 @@ const NOMES_MODULO = {
 
 const SQL_LER_ESTADO = "SELECT revision, state FROM fleet_workspace_state WHERE company_id = $1";
 
+const ESTADO_VAZIO = JSON.stringify({
+  schemaVersion: 2,
+  configuracoes: { alertaTrocaOleoKm: 1000, alertaTrocaOleoDias: 30 },
+  veiculos: [],
+  pecas: [],
+  movimentacoes: [],
+  pecasExternas: [],
+  manutencoes: [],
+  despesas: [],
+  abastecimentos: [],
+  trocasOleo: [],
+});
+
 /*
  * Atualização atômica: só altera se a revisão ainda for a esperada, e registra a
  * auditoria apenas quando a alteração ocorreu (a CTE de auditoria lê de "atualizado").
@@ -70,17 +83,38 @@ WITH atualizado AS (
 )
 SELECT revision FROM atualizado`;
 
-async function lerEstadoAtual(empresaId) {
+/*
+ * Lê o estado da empresa. Se não existir, cria um estado vazio automaticamente
+ * (idempotente: só cria se não existir). Assim o primeiro acesso não mostra erro
+ * e o usuário pode cadastrar dados reais.
+ */
+async function lerEstadoAtual(empresaId, usuarioId) {
   const linhas = await consultar(SQL_LER_ESTADO, [empresaId], { leitura: true });
-  if (!linhas[0]) {
-    throw new ApiError(404, "AREA_NAO_INICIALIZADA", "Os dados desta empresa ainda não foram inicializados.");
+  if (linhas[0]) {
+    return { revision: Number(linhas[0].revision), state: linhas[0].state };
   }
-  return { revision: Number(linhas[0].revision), state: linhas[0].state };
+  // Cria estado vazio (idempotente: ON CONFLICT DO NOTHING)
+  const criado = await consultar(
+    `INSERT INTO fleet_workspace_state (company_id, schema_version, state, revision, updated_by)
+     VALUES ($1::uuid, 2, $2::jsonb, 1, $3::uuid)
+     ON CONFLICT (company_id) DO NOTHING
+     RETURNING revision, state`,
+    [empresaId, ESTADO_VAZIO, usuarioId],
+  );
+  if (criado[0]) {
+    return { revision: Number(criado[0].revision), state: criado[0].state };
+  }
+  // Outro request criou ao mesmo tempo: reler
+  const relido = await consultar(SQL_LER_ESTADO, [empresaId], { leitura: true });
+  if (!relido[0]) {
+    throw new ApiError(500, "BANCO_ERRO", "Não foi possível inicializar os dados da empresa.");
+  }
+  return { revision: Number(relido[0].revision), state: relido[0].state };
 }
 
 async function responderLeitura(req, res, sessao) {
   exigirAlgumaPermissao(sessao);
-  const atual = await lerEstadoAtual(sessao.empresa.id);
+  const atual = await lerEstadoAtual(sessao.empresa.id, sessao.usuario.id);
   enviarDados(res, 200, atual);
 }
 
@@ -95,7 +129,7 @@ async function responderGravacao(req, res, sessao) {
     throw new ApiError(400, "DADOS_INVALIDOS", "Informe o estado a ser gravado (state).");
   }
 
-  const atual = await lerEstadoAtual(sessao.empresa.id);
+  const atual = await lerEstadoAtual(sessao.empresa.id, sessao.usuario.id);
   if (atual.revision !== base) {
     throw new ApiError(409, "REVISAO_DESATUALIZADA", "Os dados foram alterados por outro usuário. Recarregue antes de salvar.", {
       revisaoAtual: atual.revision,
@@ -143,7 +177,7 @@ async function responderGravacao(req, res, sessao) {
   ]);
 
   if (!gravado[0]) {
-    const agora = await lerEstadoAtual(sessao.empresa.id);
+    const agora = await lerEstadoAtual(sessao.empresa.id, sessao.usuario.id);
     throw new ApiError(409, "REVISAO_DESATUALIZADA", "Os dados foram alterados por outro usuário. Recarregue antes de salvar.", {
       revisaoAtual: agora.revision,
     });

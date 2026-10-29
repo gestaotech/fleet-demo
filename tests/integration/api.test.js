@@ -208,13 +208,15 @@ describe("estado operacional: leitura, permissões e concorrência", () => {
     assert.equal(r.texto.includes("demo123"), false);
   });
 
-  it("empresa sem estado inicializado responde 404 controlado", async () => {
+  it("empresa nova recebe estado vazio automaticamente (sem erro)", async () => {
     const vazia = await h.criarEmpresa("estado-vazia");
     await h.criarUsuario({ empresaId: vazia, login: "vazia.admin", permissoes: ["admin"] });
     const s = await h.entrar("vazia.admin");
     const r = await h.requisitar("GET", "/api/v1/workspace", { cookies: s.cookies });
-    assert.equal(r.status, 404);
-    assert.equal(r.json.error.code, "AREA_NAO_INICIALIZADA");
+    assert.equal(r.status, 200);
+    assert.equal(r.json.data.revision, 1);
+    assert.deepEqual(r.json.data.state.veiculos, []);
+    assert.deepEqual(r.json.data.state.pecas, []);
   });
 
   it("usuário sem o módulo da coleção alterada recebe 403 e nada é gravado", async () => {
