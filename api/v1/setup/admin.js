@@ -16,7 +16,7 @@
 
 const crypto = require("node:crypto");
 const { ApiError } = require("../../../lib/errors");
-const { consultar } = require("../../../lib/db");
+const { consultarTransacao } = require("../../../lib/db");
 const {
   comErros,
   exigirMetodo,
@@ -73,50 +73,53 @@ async function handler(req, res) {
     throw new ApiError(400, "DADOS_INVALIDOS", "O identificador da empresa deve ter de 3 a 60 caracteres, usando letras minúsculas, números e hífen.");
   }
 
-  const linhas = await consultar(
-    `WITH trava AS MATERIALIZED (
-       SELECT pg_advisory_xact_lock(718203641)
-     ),
-     banco_vazio AS MATERIALIZED (
-       SELECT NOT EXISTS (SELECT 1 FROM app_users) AS permitido FROM trava
-     ),
-     empresa AS (
-       INSERT INTO companies (name, slug)
-       SELECT $4::text, $5::text FROM banco_vazio WHERE permitido
-       ON CONFLICT (slug) DO UPDATE SET name = companies.name
-       RETURNING id
-     ),
-     usuario AS (
-       INSERT INTO app_users (login, name, cargo, password_hash, active)
-       SELECT $1::text, $2::text, 'Administrador', $3::text, TRUE
-       FROM empresa
-       RETURNING id
-     ),
-     vinculo AS (
-       INSERT INTO company_memberships (user_id, company_id, role, active, permissions)
-       SELECT usuario.id, empresa.id, 'OWNER', TRUE, $6::text[]
-       FROM usuario CROSS JOIN empresa
-       RETURNING id
-     ),
-     auditoria AS (
-       INSERT INTO audit_logs (company_id, actor_user_id, action, entity, entity_id, result, metadata)
-       SELECT empresa.id, usuario.id, 'ADMIN_CRIADO_PELO_BOOTSTRAP', 'app_users',
-              usuario.id::text, 'SUCCESS', $7::jsonb
-       FROM usuario CROSS JOIN empresa CROSS JOIN vinculo
-       RETURNING id
-     )
-     SELECT usuario.id
-       FROM usuario CROSS JOIN auditoria`,
-    [
-      login,
-      nome,
-      hashPassword(senha),
-      empresaNome,
-      empresaSlug,
-      paraArrayPg([...MODULOS]),
-      JSON.stringify({ login, origem: "bootstrap_temporario" }),
-    ],
-  );
+  const linhas = await consultarTransacao([
+    {
+      texto: "SELECT pg_advisory_xact_lock(718203641)",
+      parametros: [],
+    },
+    {
+      texto: `WITH banco_vazio AS MATERIALIZED (
+         SELECT NOT EXISTS (SELECT 1 FROM app_users) AS permitido
+       ),
+       empresa AS (
+         INSERT INTO companies (name, slug)
+         SELECT $4::text, $5::text FROM banco_vazio WHERE permitido
+         ON CONFLICT (slug) DO UPDATE SET name = companies.name
+         RETURNING id
+       ),
+       usuario AS (
+         INSERT INTO app_users (login, name, cargo, password_hash, active)
+         SELECT $1::text, $2::text, 'Administrador', $3::text, TRUE
+         FROM empresa
+         RETURNING id
+       ),
+       vinculo AS (
+         INSERT INTO company_memberships (user_id, company_id, role, active, permissions)
+         SELECT usuario.id, empresa.id, 'OWNER', TRUE, $6::text[]
+         FROM usuario CROSS JOIN empresa
+         RETURNING id
+       ),
+       auditoria AS (
+         INSERT INTO audit_logs (company_id, actor_user_id, action, entity, entity_id, result, metadata)
+         SELECT empresa.id, usuario.id, 'ADMIN_CRIADO_PELO_BOOTSTRAP', 'app_users',
+                usuario.id::text, 'SUCCESS', $7::jsonb
+         FROM usuario CROSS JOIN empresa CROSS JOIN vinculo
+         RETURNING id
+       )
+       SELECT usuario.id
+         FROM usuario CROSS JOIN auditoria`,
+      parametros: [
+        login,
+        nome,
+        hashPassword(senha),
+        empresaNome,
+        empresaSlug,
+        paraArrayPg([...MODULOS]),
+        JSON.stringify({ login, origem: "bootstrap_temporario" }),
+      ],
+    },
+  ]);
 
   if (!linhas[0]) {
     throw new ApiError(409, "BOOTSTRAP_INDISPONIVEL", "Já existe um usuário no banco. A configuração inicial só funciona em um banco sem usuários; nada foi alterado.");
