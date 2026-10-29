@@ -11,10 +11,8 @@
  *  - a empresa nunca fica sem administrador ativo;
  *  - alteração de senha ou desativação revoga as sessões do usuário;
  *  - a auditoria registra os NOMES dos campos alterados, nunca os valores de senha.
- *
- * Limitação conhecida: a verificação do último administrador é feita na aplicação antes
- * da gravação. Duas edições simultâneas e opostas podem, em tese, passar pela verificação;
- * a correção definitiva exige transação serializável ou restrição no banco (roadmap).
+
+ * A validação final e a gravação são serializadas por empresa no PostgreSQL.
  */
 
 const { ApiError } = require("../../../lib/errors");
