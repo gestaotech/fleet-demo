@@ -1,9 +1,8 @@
-# Demonstração de Frota — Gestão Tech
+# Sistema de Gestão de Frota — Gestão Tech
 
 Sistema de gestão de frota para **Tarcísio Araújo Transportes**, desenvolvido pela **Gestão Tech**.
 
-> **Todos os dados são fictícios.** Placas, nomes, peças e valores foram criados para a demonstração.
-> Não use dados reais de clientes neste ambiente.
+> Sistema de gestão de frota para **Tarcísio Araújo Transportes**, desenvolvido pela **Gestão Tech**.
 
 ## Stack
 
@@ -22,7 +21,7 @@ Sistema de gestão de frota para **Tarcísio Araújo Transportes**, desenvolvido
 | Persistência dos dados operacionais | **Integrado ao banco** via `fleet_workspace_state` (estado por empresa, com revisão) |
 | Controle de atualizações simultâneas | **Integrado** (gravação recusada com 409 quando a revisão está desatualizada) |
 | Auditoria | **Integrada** (login, usuários, alterações de estado; tabela imutável por gatilho) |
-| Regras de negócio da demonstração | **Preservadas** (mesmos módulos em `js/core`, com testes de regressão) |
+| Regras de negócio | **Preservadas** (mesmos módulos em `js/core`, com testes de regressão) |
 | Validação de integridade no servidor | **Integrada** (referências, quantidades positivas, estoque não negativo) |
 | Neon em produção | **Pendente**: o código foi testado com PostgreSQL local; a conexão ao Neon ainda não foi validada (ver *Limitações*) |
 | Publicação na Vercel | **Pendente**: não há deploy realizado |
@@ -86,7 +85,7 @@ Todas estão documentadas em `.env.example`. Resumo:
 | `IP_HASH_SALT` | sim em produção | Salt do hash de IP nos registros. |
 | `SESSION_TTL_HOURS` | não | Validade da sessão (1 a 720 h; padrão 8). |
 | `TRUSTED_PROXY_HEADERS` | só na Vercel | `"true"` faz o limite de tentativas usar `x-forwarded-for`. |
-| `ALLOW_SEED`, `SEED_*` | só no seed | Seed de demonstração; recusado em produção. |
+| `ALLOW_SEED`, `SEED_*` | só no seed | Seed de dados de exemplo; recusado em produção. |
 | `TEST_DATABASE_URL`, `TEST_DATABASE_RESET` | só nos testes de integração | Banco descartável. `TEST_DATABASE_RESET=sim` é obrigatório. |
 | `PORT` | não | Porta do `npm start` (padrão 8080). |
 
@@ -103,16 +102,16 @@ npm run db:migrate
 
 ## 5. Primeiro acesso
 
-### Desenvolvimento e demonstração (seed)
+### Inicialização com dados de exemplo (seed)
 
 ```bash
 ALLOW_SEED=true SEED_ADMIN_PASSWORD="senha-com-10-ou-mais" npm run db:seed
 ```
 
-Cria a empresa de demonstração, o administrador com todos os módulos e o estado com dados fictícios.
+Cria a empresa, o administrador com todos os módulos e o estado inicial com dados de exemplo.
 Não existe senha padrão. O seed não grava as antigas senhas `demo123`.
 
-### Produção (sem estado de demonstração)
+### Produção (sem dados de exemplo)
 
 ```bash
 CONFIRMAR_CRIACAO_ADMIN=sim ADMIN_LOGIN=joao.admin ADMIN_NOME="João Administrador" \
@@ -144,7 +143,7 @@ npm run dev          # vercel dev
 | Comando | O que verifica | Requisitos |
 |---|---|---|
 | `npm test` | Testes unitários: segurança, HTTP, validação de estado e usuários, imports entre módulos | nenhum |
-| `npm run test:legacy` | Regras da demonstração (custos, consumo, óleo, almoxarifado, relatórios), roteamento e cliente de API | nenhum |
+| `npm run test:legacy` | Regras de negócio (custos, consumo, óleo, almoxarifado, relatórios), roteamento e cliente de API | nenhum |
 | `npm run test:integration` | API real contra PostgreSQL: login, CSRF, permissões, concorrência, invariantes, auditoria imutável, isolamento entre empresas, usuários, falha do banco | `TEST_DATABASE_URL` e `TEST_DATABASE_RESET=sim` |
 | `npm run build` | Arquivos obrigatórios e migrações presentes | nenhum |
 | `npm run test:all` | build + legados + unitários + integração | todos |
@@ -212,7 +211,7 @@ Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
 5. **Login global:** o nome de acesso é único em toda a plataforma (não por empresa).
 6. **Uma empresa ativa por sessão:** a troca de empresa ainda não tem tela; o login escolhe o primeiro vínculo ativo.
 7. **Sem ação de reset de senha** pela interface: o administrador redefine a senha do usuário.
-8. **Interface:** as telas de manutenção, combustível e relatórios continuam as mesmas da demonstração;
+8. **Interface:** as telas de manutenção, combustível e relatórios continuam as mesmas do sistema;
    foram testadas nos fluxos de cadastro, gravação e permissão, mas não há teste automatizado de navegador.
 9. **Publicação:** nenhum deploy foi feito. Não há ambiente publicado para o cliente. O código está pronto para deploy na Vercel (ver seção 8).
 10. **Exclusão de registros:** a interface não remove registros (apenas desativa usuários e veículos). A exclusão

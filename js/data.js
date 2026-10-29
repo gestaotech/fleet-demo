@@ -1,12 +1,12 @@
 /*
- * Dados FICTÍCIOS de demonstração.
+ * Dados de exemplo para inicialização controlada do ambiente de desenvolvimento e testes.
  * Nenhum registro representa pessoas, veículos, peças ou valores reais do cliente.
  * Placas no padrão "DEM" e nomes de usuários são inventados para a apresentação.
  */
 const DemoData = (function () {
   const SCHEMA_VERSION = 2;
 
-  /* Parâmetros configuráveis da demonstração (aplicados aos alertas de troca de óleo). */
+  /* Parâmetros configuráveis da aplicação (aplicados aos alertas de troca de óleo). */
   function defaultConfiguracoes() {
     return { alertaTrocaOleoKm: 1000, alertaTrocaOleoDias: 30 };
   }
@@ -16,7 +16,7 @@ const DemoData = (function () {
       schemaVersion: SCHEMA_VERSION,
       configuracoes: defaultConfiguracoes(),
       usuarios: [
-        { id: 'USR-001', nome: 'Administrador da Demonstração', cargo: 'Administrador', login: 'admin', senha: 'demo123', ativo: true, permissoes: ['admin', 'almoxarifado', 'veiculos', 'manutencao', 'combustivel', 'relatorios'] },
+        { id: 'USR-001', nome: 'Administrador', cargo: 'Administrador', login: 'admin', senha: 'demo123', ativo: true, permissoes: ['admin', 'almoxarifado', 'veiculos', 'manutencao', 'combustivel', 'relatorios'] },
         { id: 'USR-002', nome: 'Rogério Santana', cargo: 'Almoxarife', login: 'almoxarifado', senha: 'demo123', ativo: true, permissoes: ['almoxarifado'] },
         { id: 'USR-003', nome: 'Márcia Lopes', cargo: 'Supervisora de Oficina', login: 'oficina', senha: 'demo123', ativo: true, permissoes: ['veiculos', 'manutencao', 'combustivel'] },
         { id: 'USR-004', nome: 'Paulo Ferreira', cargo: 'Gerente de Operações', login: 'gerencia', senha: 'demo123', ativo: true, permissoes: ['veiculos', 'combustivel', 'relatorios'] },

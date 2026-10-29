@@ -56,7 +56,7 @@ const App = (function () {
       { label: 'Visão geral', href: '#/admin' },
       { label: 'Usuários e permissões', href: '#/admin/usuarios' },
       { label: 'Parâmetros', href: '#/admin/parametros' },
-      { label: 'Dados da demonstração', href: '#/admin/dados' },
+      { label: 'Administração do Sistema', href: '#/admin/dados' },
     ],
     almoxarifado: [
       { label: 'Estoque de peças', href: '#/almoxarifado/estoque' },
@@ -206,14 +206,14 @@ const App = (function () {
   function brandHtml() {
     return `<a class="brand" href="#/" aria-label="Início">
               <img src="assets/logo-tarcisio.jpeg" alt="Logo Tarcísio Araújo Transportes" class="brand-logo">
-              <span class="brand-text"><strong>Tarcísio Araújo Transportes</strong><small>Demonstração de gestão de frota</small></span>
+              <span class="brand-text"><strong>Tarcísio Araújo Transportes</strong><small>Sistema de gestão de frota</small></span>
             </a>`;
   }
 
   function footerHtml() {
     return `<footer class="app-footer">
               <span>Desenvolvido por Gestão Tech</span>
-              <span class="muted">Dados fictícios, apenas para demonstração.</span>
+              <span class="muted">Gestão Tech</span>
             </footer>`;
   }
 
@@ -311,7 +311,7 @@ const App = (function () {
           <img src="assets/logo-tarcisio.jpeg" alt="Logo Tarcísio Araújo Transportes" class="hero-logo">
           <h1>Tarcísio Araújo Transportes</h1>
           <p>Sistema de gestão de frota, almoxarifado e manutenção</p>
-          <span class="badge badge-info">Demonstração com dados fictícios</span>
+          <span class="badge badge-info">Sistema operacional</span>
         </section>
         <section class="module-grid" aria-label="Módulos">${cards}</section>
         ${user ? '' : '<p class="muted center">Entre para acessar os módulos. <a class="link" href="#/login">Entrar</a></p>'}
@@ -324,12 +324,12 @@ const App = (function () {
       ${headerHtml(null)}
       <main class="login-wrap">
         <form class="card login-card" id="login-form" novalidate>
-          <h1>Entrar na demonstração</h1>
+          <h1>Entrar no sistema</h1>
           <div class="form-errors" id="login-errors">${mensagem ? UI.esc(mensagem) : ''}</div>
           <label class="field">Usuário<input name="login" autocomplete="username" required></label>
           <label class="field">Senha<input name="senha" type="password" autocomplete="current-password" required></label>
           <button class="btn btn-primary btn-block" type="submit" id="login-submit">Entrar</button>
-          <p class="hint">A autenticação é feita no servidor. Use o usuário e a senha cadastrados pelo administrador da demonstração.</p>
+          <p class="hint">Use o usuário e a senha cadastrados pelo administrador do sistema.</p>
         </form>
       </main>
       ${footerHtml()}`);
