@@ -202,8 +202,7 @@ Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
    a escrita é controlada por módulo).
 3. **Limite de tentativas e bloqueios** são persistidos por chave de tempo; em alta concorrência podem
    existir poucas tentativas além do limite.
-4. **Último administrador:** a regra é verificada antes da gravação. Duas edições simultâneas e opostas
-   podem, em tese, passar pela verificação (ver `api/v1/users/[id].js`).
+4. **Último administrador:** a edição agora serializa as alterações por empresa em uma transação e revalida a quantidade de administradores após obter o lock. O teste de integração cobre desativações simultâneas; o CI precisa confirmar o comportamento.
 5. **Login global:** o nome de acesso é único em toda a plataforma (não por empresa).
 6. **Uma empresa ativa por sessão:** a troca de empresa ainda não tem tela; o login escolhe o primeiro vínculo ativo.
 7. **Sem ação de reset de senha** pela interface: o administrador redefine a senha do usuário.
@@ -221,7 +220,7 @@ Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
 
 ## 12. Próximas etapas
 
-1. Confirmar que as migrações necessárias estão aplicadas no ambiente correto e rodar `npm run test:integration` contra um banco de teste separado (nunca contra o banco operacional).
+1. Confirmar que as migrações necessárias estão aplicadas no ambiente correto e rodar `npm run test:integration` contra um banco de teste separado (nunca contra o banco operacional), incluindo o cenário concorrente de último administrador.
 2. Validar em preview da Vercel `/api/v1/health`, login, leitura/gravação, permissões, auditoria e relatórios.
 3. Migrar o estado JSON para tabelas relacionais por entidade, mantendo as regras de `js/core`.
 4. Testes de navegador (ponta a ponta) para os fluxos principais.
