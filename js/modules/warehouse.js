@@ -462,8 +462,83 @@ const WarehouseScreens = (function () {
     );
   }
 
+  function usedParts(main, params, ctx) {
+    const today = Utils.todayIso();
+    const monthStart = `${today.slice(0, 8)}01`;
+    main.innerHTML = `
+      ${pageHeader('Peças usadas', 'Peças consumidas em veículos: retiradas do almoxarifado e peças externas.')}
+      <section class="card">
+        <h2>Peças usadas registradas</h2>
+        <div class="filter-bar">
+          <label class="field">De<input type="date" id="u-from" value="${monthStart}"></label>
+          <label class="field">Até<input type="date" id="u-to" value="${today}"></label>
+          <label class="field">Veículo<select id="u-veiculo"><option value="Todos">Todos</option>${ctx.state.veiculos.map(v => option(v.id, v.placa)).join('')}</select></label>
+          <label class="field">Tipo<select id="u-tipo"><option value="Todos">Todos</option><option value="Interno">Interno (almoxarifado)</option><option value="Externo">Externo</option></select></label>
+        </div>
+        <div id="used-parts-list"></div>
+      </section>`;
+
+    const renderList = () => {
+      const from = main.querySelector('#u-from').value;
+      const to = main.querySelector('#u-to').value;
+      const veiculoId = main.querySelector('#u-veiculo').value;
+      const tipo = main.querySelector('#u-tipo').value;
+
+      const retiradas = Warehouse.withdrawals(ctx.state, { from, to, veiculoId }).map(r => ({
+        data: r.data,
+        tipo: 'Interno',
+        descricao: r.pecaDescricao,
+        quantidade: r.quantidade,
+        valorUnitario: r.valorUnitario,
+        valorTotal: r.valorTotal,
+        veiculoId: r.veiculoId,
+        veiculoPlaca: (Vehicles.find(ctx.state, r.veiculoId) || {}).placa || r.veiculoId,
+        manutencaoId: r.manutencaoId,
+        responsavel: r.responsavel,
+      }));
+
+      const externas = Warehouse.externalParts(ctx.state, { from, to, veiculoId }).map(e => ({
+        data: e.data,
+        tipo: 'Externo',
+        descricao: e.descricao,
+        quantidade: e.quantidade,
+        valorUnitario: e.valorUnitario,
+        valorTotal: e.valorTotal,
+        veiculoId: e.veiculoId,
+        veiculoPlaca: (Vehicles.find(ctx.state, e.veiculoId) || {}).placa || e.veiculoId,
+        manutencaoId: e.manutencaoId,
+        responsavel: e.responsavel,
+      }));
+
+      let rows = [...retiradas, ...externas].sort((a, b) => b.data.localeCompare(a.data));
+      if (tipo !== 'Todos') rows = rows.filter(r => r.tipo === tipo);
+
+      const linhas = rows.map(r => [
+        Utils.formatDate(r.data),
+        esc(r.descricao),
+        String(r.quantidade),
+        money(r.valorUnitario),
+        money(r.valorTotal),
+        esc(r.veiculoPlaca),
+        r.tipo === 'Interno' ? UI.badge('Interno', 'info') : UI.badge('Externo', 'muted'),
+        r.manutencaoId ? esc(r.manutencaoId) : '—',
+        esc(r.responsavel),
+      ]);
+
+      main.querySelector('#used-parts-list').innerHTML = table(
+        [{ label: 'Data' }, { label: 'Peça' }, { label: 'Qtd.', align: 'right' }, { label: 'Valor unit.', align: 'right' },
+          { label: 'Total', align: 'right' }, { label: 'Veículo' }, { label: 'Origem' }, { label: 'Manutenção' }, { label: 'Responsável' }],
+        linhas,
+        'Nenhuma peça usada no período selecionado.',
+      ) + `<p class="totals">Total de unidades: <strong>${rows.reduce((a, r) => a + r.quantidade, 0)}</strong>  ·  Valor total: <strong>${money(Utils.sum(rows, r => r.valorTotal))}</strong></p>`;
+    };
+
+    ['#u-from', '#u-to', '#u-veiculo', '#u-tipo'].forEach(sel => main.querySelector(sel).addEventListener('change', renderList));
+    renderList();
+  }
+
   return {
-    stock, partForm, entryForm, partHistory, withdrawals, external,
+    stock, partForm, entryForm, partHistory, withdrawals, external, usedParts,
     withdrawalFormHtml, bindWithdrawalForm, externalFormHtml, bindExternalForm, openMaintenanceOptions,
   };
 })();

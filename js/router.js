@@ -20,6 +20,7 @@ const Router = (function () {
     { path: '/almoxarifado/estoque/:id', page: 'partHistory' },
     { path: '/almoxarifado/retiradas', page: 'warehouseWithdrawals' },
     { path: '/almoxarifado/externas', page: 'warehouseExternal' },
+{ path: '/almoxarifado/usadas', page: 'warehouseUsedParts' },
     { path: '/veiculos', page: 'vehicleList' },
     { path: '/veiculos/novo', page: 'vehicleForm' },
     { path: '/veiculos/:id/editar', page: 'vehicleForm' },
