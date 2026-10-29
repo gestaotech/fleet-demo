@@ -18,7 +18,6 @@ const ARQUIVOS_OBRIGATORIOS = [
   "js/app.js",
   "js/api.js",
   "js/storage.js",
-  "js/data.js",
   "api/v1/health.js",
   "api/v1/auth/login.js",
   "api/v1/auth/logout.js",
@@ -48,6 +47,12 @@ for (const nome of esperadas) {
     console.error(`Migração ausente: ${nome}`);
     process.exit(1);
   }
+}
+
+const htmlPrincipal = fs.readFileSync(path.join(RAIZ, "index.html"), "utf8");
+if (/src=["\']js\/data\.js["\']/.test(htmlPrincipal)) {
+  console.error("index.html não pode carregar dados fictícios de desenvolvimento.");
+  process.exit(1);
 }
 
 console.log("Estrutura estática, API e migrações verificadas.");

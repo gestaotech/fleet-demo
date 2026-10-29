@@ -2,8 +2,6 @@
 
 Sistema de gestão de frota para **Tarcísio Araújo Transportes**, desenvolvido pela **Gestão Tech**.
 
-> Sistema de gestão de frota para **Tarcísio Araújo Transportes**, desenvolvido pela **Gestão Tech**.
-
 ## Stack
 
 - **Interface:** HTML, CSS e JavaScript puro (sem React, Next.js, TypeScript ou Prisma).
@@ -23,8 +21,8 @@ Sistema de gestão de frota para **Tarcísio Araújo Transportes**, desenvolvido
 | Auditoria | **Integrada** (login, usuários, alterações de estado; tabela imutável por gatilho) |
 | Regras de negócio | **Preservadas** (mesmos módulos em `js/core`, com testes de regressão) |
 | Validação de integridade no servidor | **Integrada** (referências, quantidades positivas, estoque não negativo) |
-| Neon em produção | **Pendente**: o código foi testado com PostgreSQL local; a conexão ao Neon ainda não foi validada (ver *Limitações*) |
-| Publicação na Vercel | **Pendente**: não há deploy realizado |
+| Conexão com o Neon | **Conectividade confirmada pelo endpoint de saúde**; isso não substitui testes completos de todos os fluxos |
+| Deploy e fluxos completos | **Validar por ambiente**; o build/CI não comprova por si só todos os fluxos funcionais |
 
 A migração **ainda não está concluída** do ponto de vista de arquitetura final: os dados operacionais são
 guardados como um estado JSON por empresa (decisão para migrar sem reescrever os módulos). Tabelas
@@ -38,6 +36,7 @@ css/                         estilos
 js/                          interface e regras
   api.js                     cliente HTTP (CSRF, erros padronizados)
   storage.js                 estado operacional via API (sem LocalStorage)
+  data.js                    fixture fictícia para seed/testes; excluída do pacote público
   app.js                     boot, sessão, login, fila de gravação
   modules/                   telas (administrador, veículos, manutenção, óleo, combustível, almoxarifado, relatórios)
   core/                      regras de negócio puras (custos, consumo, óleo, saldo, períodos)
@@ -102,14 +101,13 @@ npm run db:migrate
 
 ## 5. Primeiro acesso
 
-### Inicialização com dados de exemplo (seed)
+### Inicialização com dados fictícios (somente desenvolvimento/teste)
 
 ```bash
 ALLOW_SEED=true SEED_ADMIN_PASSWORD="senha-com-10-ou-mais" npm run db:seed
 ```
 
-Cria a empresa, o administrador com todos os módulos e o estado inicial com dados de exemplo.
-Não existe senha padrão. O seed não grava as antigas senhas `demo123`.
+Cria a empresa, o administrador com todos os módulos e o estado inicial com dados fictícios. Execute apenas em banco de desenvolvimento/teste; o seed recusa ambiente de produção. Não existe senha padrão. As fixtures não são carregadas pelo navegador nem incluídas no pacote estático público.
 
 ### Produção (sem dados de exemplo)
 
@@ -198,9 +196,7 @@ Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
 
 ## 11. Limitações conhecidas
 
-1. **Neon validado.** O adaptador HTTP do Neon (`lib/db.js`) foi testado contra o banco Neon real:
-   migrações aplicadas (001, 002, 003), seed executado, health retorna `"database": "connected"`,
-   login funciona e os 35 testes de integração passaram contra um banco de teste no Neon.
+1. **Conectividade do Neon:** a verificação `/api/v1/health` retornou `{"ok":true,"service":"fleet-demo-api","database":"connected","configuracao":"ok"}` no ambiente verificado. Isso confirma a conectividade do endpoint com o banco naquele momento, mas não comprova todos os fluxos de login, gravação, permissões e relatórios. Confirme as migrações e execute os testes de integração em banco de teste separado antes de liberar alterações.
 2. **Estado operacional em JSON por empresa.** Gravar o estado inteiro é simples e seguro contra conflitos,
    mas não permite consultas relacionais nem permissões de leitura por coleção (a leitura é da empresa inteira;
    a escrita é controlada por módulo).
@@ -213,7 +209,7 @@ Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
 7. **Sem ação de reset de senha** pela interface: o administrador redefine a senha do usuário.
 8. **Interface:** as telas de manutenção, combustível e relatórios continuam as mesmas do sistema;
    foram testadas nos fluxos de cadastro, gravação e permissão, mas não há teste automatizado de navegador.
-9. **Publicação:** nenhum deploy foi feito. Não há ambiente publicado para o cliente. O código está pronto para deploy na Vercel (ver seção 8).
+9. **Deploy e validação funcional:** um check de build/CI bem-sucedido não comprova todos os fluxos no ambiente publicado. Validar login, leitura e gravação, permissões, auditoria e relatórios em preview antes de liberar ao cliente.
 10. **Exclusão de registros:** a interface não remove registros (apenas desativa usuários e veículos). A exclusão
     autorizada precisa ser planejada antes de ser exposta ao cliente.
 11. **Validação parcial de regras no servidor:** a API valida formato, referências e estoque, mas não todas as
@@ -225,8 +221,8 @@ Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
 
 ## 12. Próximas etapas
 
-1. Validar o Neon: migrar, criar o administrador e rodar `npm run test:integration` contra um banco de teste do Neon.
-2. Publicar um preview na Vercel e validar `/api/v1/health` e o fluxo de login.
+1. Confirmar que as migrações necessárias estão aplicadas no ambiente correto e rodar `npm run test:integration` contra um banco de teste separado (nunca contra o banco operacional).
+2. Validar em preview da Vercel `/api/v1/health`, login, leitura/gravação, permissões, auditoria e relatórios.
 3. Migrar o estado JSON para tabelas relacionais por entidade, mantendo as regras de `js/core`.
 4. Testes de navegador (ponta a ponta) para os fluxos principais.
 5. Troca de empresa para usuários com vínculo em mais de uma empresa.
