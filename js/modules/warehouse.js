@@ -208,6 +208,14 @@ const WarehouseScreens = (function () {
               <option value="Zerado">Zeradas</option>
             </select>
           </label>
+          <label class="field">Uso
+            <select id="stock-uso">
+              <option value="Todos">Todos</option>
+              <option value="Nova">Nova</option>
+              <option value="Usada">Usada</option>
+              <option value="Nova e usada">Nova e usada</option>
+            </select>
+          </label>
           <div class="field field-action">
             <button type="button" class="btn btn-ghost" id="stock-clear">Limpar pesquisa</button>
           </div>
@@ -220,8 +228,9 @@ const WarehouseScreens = (function () {
       const termInput = main.querySelector('#stock-term');
       const term = termInput.value;
       const situacao = main.querySelector('#stock-situacao').value;
-      const filtered = Warehouse.filterInventory(rows, { termo: term, situacao });
-      const filtrando = Boolean(Utils.normalizeText(term)) || situacao !== 'Todas';
+      const uso = main.querySelector('#stock-uso').value;
+      const filtered = Warehouse.filterInventory(rows, { termo: term, situacao, uso });
+      const filtrando = Boolean(Utils.normalizeText(term)) || situacao !== 'Todas' || uso !== 'Todos';
       main.querySelector('#stock-summary').textContent = filtrando
         ? `Exibindo ${filtered.length} de ${rows.length} peças para o filtro atual.`
         : `${rows.length} peças cadastradas.`;
@@ -229,7 +238,7 @@ const WarehouseScreens = (function () {
         [
           { label: 'Código' }, { label: 'Descrição' }, { label: 'Valor unitário', align: 'right' },
           { label: 'Saldo', align: 'right' }, { label: 'Mínimo', align: 'right' }, { label: 'Data de entrada' },
-          { label: 'Situação' }, { label: '' },
+          { label: 'Situação' }, { label: 'Uso' }, { label: '' },
         ],
         filtered.map(r => [
           esc(r.codigo),
@@ -239,6 +248,7 @@ const WarehouseScreens = (function () {
           String(r.estoqueMinimo),
           Utils.formatDate(r.dataEntrada),
           stockBadge(r),
+          r.situacaoUso === 'Nova' ? UI.badge('Nova', 'ok') : (r.situacaoUso === 'Usada' ? UI.badge('Usada', 'muted') : UI.badge('Nova e usada', 'info')),
           `<div class="row-actions"><a class="link" href="#/almoxarifado/estoque/${esc(r.id)}">Movimentações</a><a class="link" href="#/almoxarifado/estoque/${esc(r.id)}/editar">Editar</a></div>`,
         ]),
         filtrando ? 'Nenhuma peça corresponde à pesquisa ou aos filtros informados.' : 'Nenhuma peça cadastrada.',
@@ -246,9 +256,11 @@ const WarehouseScreens = (function () {
     };
     main.querySelector('#stock-term').addEventListener('input', renderTable);
     main.querySelector('#stock-situacao').addEventListener('change', renderTable);
+    main.querySelector('#stock-uso').addEventListener('change', renderTable);
     main.querySelector('#stock-clear').addEventListener('click', () => {
       main.querySelector('#stock-term').value = '';
       main.querySelector('#stock-situacao').value = 'Todas';
+      main.querySelector('#stock-uso').value = 'Todos';
       main.querySelector('#stock-term').focus();
       renderTable();
     });
@@ -462,8 +474,83 @@ const WarehouseScreens = (function () {
     );
   }
 
+  function usedParts(main, params, ctx) {
+    const today = Utils.todayIso();
+    const monthStart = `${today.slice(0, 8)}01`;
+    main.innerHTML = `
+      ${pageHeader('Peças usadas', 'Peças consumidas em veículos: retiradas do almoxarifado e peças externas.')}
+      <section class="card">
+        <h2>Peças usadas registradas</h2>
+        <div class="filter-bar">
+          <label class="field">De<input type="date" id="u-from" value="${monthStart}"></label>
+          <label class="field">Até<input type="date" id="u-to" value="${today}"></label>
+          <label class="field">Veículo<select id="u-veiculo"><option value="Todos">Todos</option>${ctx.state.veiculos.map(v => option(v.id, v.placa)).join('')}</select></label>
+          <label class="field">Tipo<select id="u-tipo"><option value="Todos">Todos</option><option value="Interno">Interno (almoxarifado)</option><option value="Externo">Externo</option></select></label>
+        </div>
+        <div id="used-parts-list"></div>
+      </section>`;
+
+    const renderList = () => {
+      const from = main.querySelector('#u-from').value;
+      const to = main.querySelector('#u-to').value;
+      const veiculoId = main.querySelector('#u-veiculo').value;
+      const tipo = main.querySelector('#u-tipo').value;
+
+      const retiradas = Warehouse.withdrawals(ctx.state, { from, to, veiculoId }).map(r => ({
+        data: r.data,
+        tipo: 'Interno',
+        descricao: r.pecaDescricao,
+        quantidade: r.quantidade,
+        valorUnitario: r.valorUnitario,
+        valorTotal: r.valorTotal,
+        veiculoId: r.veiculoId,
+        veiculoPlaca: (Vehicles.find(ctx.state, r.veiculoId) || {}).placa || r.veiculoId,
+        manutencaoId: r.manutencaoId,
+        responsavel: r.responsavel,
+      }));
+
+      const externas = Warehouse.externalParts(ctx.state, { from, to, veiculoId }).map(e => ({
+        data: e.data,
+        tipo: 'Externo',
+        descricao: e.descricao,
+        quantidade: e.quantidade,
+        valorUnitario: e.valorUnitario,
+        valorTotal: e.valorTotal,
+        veiculoId: e.veiculoId,
+        veiculoPlaca: (Vehicles.find(ctx.state, e.veiculoId) || {}).placa || e.veiculoId,
+        manutencaoId: e.manutencaoId,
+        responsavel: e.responsavel,
+      }));
+
+      let rows = [...retiradas, ...externas].sort((a, b) => b.data.localeCompare(a.data));
+      if (tipo !== 'Todos') rows = rows.filter(r => r.tipo === tipo);
+
+      const linhas = rows.map(r => [
+        Utils.formatDate(r.data),
+        esc(r.descricao),
+        String(r.quantidade),
+        money(r.valorUnitario),
+        money(r.valorTotal),
+        esc(r.veiculoPlaca),
+        r.tipo === 'Interno' ? UI.badge('Interno', 'info') : UI.badge('Externo', 'muted'),
+        r.manutencaoId ? esc(r.manutencaoId) : '—',
+        esc(r.responsavel),
+      ]);
+
+      main.querySelector('#used-parts-list').innerHTML = table(
+        [{ label: 'Data' }, { label: 'Peça' }, { label: 'Qtd.', align: 'right' }, { label: 'Valor unit.', align: 'right' },
+          { label: 'Total', align: 'right' }, { label: 'Veículo' }, { label: 'Origem' }, { label: 'Manutenção' }, { label: 'Responsável' }],
+        linhas,
+        'Nenhuma peça usada no período selecionado.',
+      ) + `<p class="totals">Total de unidades: <strong>${rows.reduce((a, r) => a + r.quantidade, 0)}</strong>  ·  Valor total: <strong>${money(Utils.sum(rows, r => r.valorTotal))}</strong></p>`;
+    };
+
+    ['#u-from', '#u-to', '#u-veiculo', '#u-tipo'].forEach(sel => main.querySelector(sel).addEventListener('change', renderList));
+    renderList();
+  }
+
   return {
-    stock, partForm, entryForm, partHistory, withdrawals, external,
+    stock, partForm, entryForm, partHistory, withdrawals, external, usedParts,
     withdrawalFormHtml, bindWithdrawalForm, externalFormHtml, bindExternalForm, openMaintenanceOptions,
   };
 })();

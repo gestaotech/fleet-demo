@@ -21,6 +21,12 @@ const Warehouse = (function () {
   }
 
   /* Uma linha por peça com saldo, valor estimado e situação. */
+  function situacaoUso(entradas, retiradas) {
+    if (retiradas > 0 && entradas > retiradas) return 'Nova e usada';
+    if (retiradas > 0) return 'Usada';
+    return 'Nova';
+  }
+
   function inventory(state) {
     return state.pecas.map(p => {
       const saldo = balance(state, p.id);
@@ -33,17 +39,19 @@ const Warehouse = (function () {
         retiradas,
         valorEstimado: Utils.round2(saldo * p.valorUnitario),
         baixo: isLowStock(p, saldo),
+        situacaoUso: situacaoUso(entradas, retiradas),
       };
     });
   }
 
-  /* filtros: { termo, situacao: 'Todas'|'Baixo'|'Zerado' } */
+  /* filtros: { termo, situacao: 'Todas'|'Baixo'|'Zerado', uso: 'Todos'|'Nova'|'Usada'|'Nova e usada' } */
   function filterInventory(rows, filters = {}) {
     const termo = Utils.searchKey(filters.termo);
     return rows.filter(r => {
       if (termo && !Utils.searchKey(`${r.codigo} ${r.descricao}`).includes(termo)) return false;
       if (filters.situacao === 'Baixo' && !r.baixo) return false;
       if (filters.situacao === 'Zerado' && r.saldo > 0) return false;
+      if (filters.uso && filters.uso !== 'Todos' && r.situacaoUso !== filters.uso) return false;
       return true;
     });
   }

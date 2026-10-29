@@ -42,8 +42,12 @@ const Oil = (function () {
     return recordsOf(state, veiculoId)[0] || null;
   }
 
+  function defaultConfiguracoes() {
+    return { alertaTrocaOleoKm: 1000, alertaTrocaOleoDias: 30 };
+  }
+
   function configuracoes(state) {
-    const defaults = DemoData.defaultConfiguracoes();
+    const defaults = defaultConfiguracoes();
     const atual = state.configuracoes || {};
     const km = Number(atual.alertaTrocaOleoKm);
     const dias = Number(atual.alertaTrocaOleoDias);

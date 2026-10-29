@@ -1,7 +1,7 @@
 "use strict";
 
 /*
- * Inicialização controlada de DEMONSTRAÇÃO/DESENVOLVIMENTO.
+ * Inicialização controlada de dados de exemplo / desenvolvimento.
  *
  * Cria (ou atualiza, sem trocar senhas existentes) a empresa, o usuário
  * administrador com todos os módulos e um estado operacional vazio. Nenhuma senha padrão é gravada.
@@ -46,8 +46,8 @@ function estadoInicial() {
 async function main() {
   exigirAmbienteSeguro();
 
-  const nomeEmpresa = process.env.SEED_COMPANY_NAME || "Empresa Demonstração";
-  const slug = (process.env.SEED_COMPANY_SLUG || "empresa-demonstracao").toLowerCase();
+  const nomeEmpresa = process.env.SEED_COMPANY_NAME || "Empresa Exemplo";
+  const slug = (process.env.SEED_COMPANY_SLUG || "empresa-exemplo").toLowerCase();
   const login = (process.env.SEED_ADMIN_LOGIN || "admin").trim().toLowerCase();
   const nomeAdmin = process.env.SEED_ADMIN_NAME || "Administrador";
   const senha = process.env.SEED_ADMIN_PASSWORD || "";

@@ -35,7 +35,7 @@ let base = "";
 let contadorIp = 0;
 
 function estadoDemo() {
-  const codigo = fs.readFileSync(path.join(__dirname, "..", "..", "js", "data.js"), "utf8");
+  const codigo = fs.readFileSync(path.join(__dirname, "..", "..", "tests", "fixtures", "data.js"), "utf8");
   const DemoData = vm.runInNewContext(`${codigo}\nDemoData;`, {});
   const estado = DemoData.createSeed();
   delete estado.usuarios;

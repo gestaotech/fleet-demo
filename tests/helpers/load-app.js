@@ -10,7 +10,7 @@ const vm = require('node:vm');
 const ROOT = path.join(__dirname, '..', '..');
 
 const FILES = [
-  'js/data.js',
+  'tests/fixtures/data.js',
   'js/api.js',
   'js/storage.js',
   'js/core/utils.js',

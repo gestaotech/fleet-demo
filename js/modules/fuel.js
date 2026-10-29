@@ -222,5 +222,188 @@ const FuelScreens = (function () {
     });
   }
 
-  return { list, form };
+  function stockEntry(main, params, ctx) {
+    const today = Utils.todayIso();
+    main.innerHTML = `
+      ${pageHeader('Entrada de combustível no estoque', 'Registra combustível adquirido para o estoque da empresa.')}
+      <form class="card form-grid" id="fuel-entry-form" novalidate>
+        <div class="form-errors full" id="form-errors"></div>
+        <label class="field">Data<input name="data" type="date" required value="${esc(today)}"></label>
+        <label class="field">Quantidade (litros)<input name="quantidade" inputmode="decimal" required placeholder="Ex.: 500,0"></label>
+        <label class="field">Valor total (R$)<input name="valorTotal" inputmode="decimal" required placeholder="0,00"></label>
+        <label class="field">Fornecedor<input name="fornecedor" required placeholder="Ex.: Posto Rodovia"></label>
+        <label class="field">Responsável<input name="responsavel" required></label>
+        <label class="field full">Observação<input name="observacao" placeholder="Opcional"></label>
+        <div class="form-actions full">
+          <a class="btn btn-ghost" href="#/combustivel">Cancelar</a>
+          <button class="btn btn-primary" type="submit">Registrar entrada</button>
+        </div>
+      </form>
+      <section class="card">
+        <h2>Entradas registradas</h2>
+        <div id="fuel-entry-list"></div>
+      </section>`;
+
+    const renderList = () => {
+      const entradas = (ctx.state.entradasCombustivel || []).slice().sort((a, b) => b.data.localeCompare(a.data));
+      const rows = entradas.map(e => [
+        Utils.formatDate(e.data),
+        Utils.formatQuantity(e.quantidade),
+        money(e.valorUnitario),
+        money(e.valorTotal),
+        esc(e.fornecedor),
+        esc(e.responsavel),
+        esc(e.observacao || '—'),
+      ]);
+      main.querySelector('#fuel-entry-list').innerHTML = table(
+        [{ label: 'Data' }, { label: 'Litros', align: 'right' }, { label: 'Preço/litro', align: 'right' },
+          { label: 'Valor total', align: 'right' }, { label: 'Fornecedor' }, { label: 'Responsável' }, { label: 'Observação' }],
+        rows,
+        'Nenhuma entrada de combustível registrada.',
+      );
+    };
+
+    main.querySelector('#fuel-entry-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const data = readForm(event.currentTarget);
+      const quantidade = Utils.parseDecimal(data.quantidade);
+      const valorTotal = Utils.parseMoney(data.valorTotal);
+      const errors = [];
+      if (!Utils.isValidDate(data.data)) errors.push('Informe a data da entrada.');
+      if (!(quantidade > 0)) errors.push('Informe a quantidade de litros maior que zero.');
+      if (!Number.isFinite(valorTotal) || valorTotal <= 0) errors.push('Informe o valor total pago maior que zero.');
+      if (!Utils.normalizeText(data.fornecedor)) errors.push('Informe o fornecedor.');
+      if (!Utils.normalizeText(data.responsavel)) errors.push('Informe o responsável.');
+      if (errors.length) {
+        UI.showErrors(main.querySelector('#form-errors'), errors);
+        return;
+      }
+      const valorUnitario = Utils.round3(valorTotal / quantidade);
+      const entrada = {
+        id: Utils.nextId('ENT', ctx.state.entradasCombustivel || [], 4),
+        data: data.data,
+        quantidade,
+        valorUnitario,
+        valorTotal,
+        fornecedor: Utils.normalizeText(data.fornecedor),
+        responsavel: Utils.normalizeText(data.responsavel),
+        observacao: Utils.normalizeText(data.observacao),
+      };
+      if (!ctx.state.entradasCombustivel) ctx.state.entradasCombustivel = [];
+      ctx.state.entradasCombustivel.push(entrada);
+      ctx.save().then(ok => {
+        if (!ok) return;
+        ctx.toast('Entrada de combustível registrada.');
+        ctx.refresh();
+      });
+    });
+
+    renderList();
+  }
+
+  function fuelFromStock(main, params, ctx) {
+    const today = Utils.todayIso();
+    const monthStart = `${today.slice(0, 8)}01`;
+    // Saldo atual do estoque de combustível
+    const saldoLitros = (ctx.state.entradasCombustivel || []).reduce((a, e) => a + e.quantidade, 0)
+      - (ctx.state.abastecimentos || []).reduce((a, a_) => a + a_.litros, 0);
+
+    main.innerHTML = `
+      ${pageHeader('Abastecimento do estoque', 'Abastece veículos utilizando o combustível do estoque da empresa.')}
+      <section class="kpi-grid">
+        ${kpi('Saldo em estoque', Utils.formatQuantity(saldoLitros) + ' L', 'Combustível disponível')}
+      </section>
+      <form class="card form-grid" id="fuel-stock-form" novalidate>
+        <div class="form-errors full" id="form-errors"></div>
+        <label class="field">Veículo
+          <select name="veiculoId" required><option value="">Selecione…</option>${vehicleOptions(ctx.state, '')}</select>
+        </label>
+        <label class="field">Data e hora<input name="dataHora" type="datetime-local" required value="${esc(Utils.nowIso())}"></label>
+        <label class="field">Quilometragem (km)
+          <input name="quilometragem" type="number" min="0" step="1" inputmode="numeric" required placeholder="0">
+        </label>
+        <label class="field">Litros abastecidos<input name="litros" inputmode="decimal" required placeholder="Ex.: 180,5"></label>
+        <label class="field">Posto ou fornecedor<input name="posto" required value="Estoque da empresa"></label>
+        <label class="field">Responsável pelo registro<input name="responsavel" required></label>
+        <label class="field full">Observação<input name="observacao" placeholder="Opcional"></label>
+        <label class="field checkbox full"><input type="checkbox" name="tanqueCheio" checked> Tanque cheio (necessário para o cálculo do consumo)</label>
+        <div class="form-actions full">
+          <a class="btn btn-ghost" href="#/combustivel">Cancelar</a>
+          <button class="btn btn-primary" type="submit">Registrar abastecimento</button>
+        </div>
+      </form>
+      <section class="card">
+        <h2>Abastecimentos do estoque</h2>
+        <div id="fuel-stock-list"></div>
+      </section>`;
+
+    const formEl = main.querySelector('#fuel-stock-form');
+    const renderList = () => {
+      const rows = (ctx.state.abastecimentos || []).slice().sort((a, b) => b.dataHora.localeCompare(a.dataHora));
+      main.querySelector('#fuel-stock-list').innerHTML = table(
+        [{ label: 'Data e hora' }, { label: 'Veículo' }, { label: 'Km', align: 'right' }, { label: 'Litros', align: 'right' },
+          { label: 'Valor total', align: 'right' }, { label: 'Responsável' }, { label: 'Tanque' }],
+        rows.map(r => {
+          const v = Vehicles.find(ctx.state, r.veiculoId);
+          return [
+            Utils.formatDateTime(r.dataHora),
+            esc(v ? v.placa : r.veiculoId),
+            Utils.formatKm(r.quilometragem),
+            Utils.formatQuantity(r.litros),
+            money(r.valorTotal),
+            esc(r.responsavel),
+            r.tanqueCheio ? UI.badge('Cheio', 'ok') : UI.badge('Parcial', 'muted'),
+          ];
+        }),
+        'Nenhum abastecimento registrado.',
+      );
+    };
+
+    formEl.addEventListener('submit', event => {
+      event.preventDefault();
+      const data = readForm(formEl);
+      const litros = Utils.parseDecimal(data.litros);
+      const errors = [];
+      const veiculo = Vehicles.find(ctx.state, data.veiculoId);
+      if (!veiculo) errors.push('Selecione o veículo.');
+      else if (!Vehicles.isActive(veiculo)) errors.push('Veículo inativo não pode receber abastecimentos.');
+      if (!Utils.isValidDateTime(data.dataHora)) errors.push('Informe a data e a hora do abastecimento.');
+      const quilometragem = Utils.parseInteger(data.quilometragem);
+      if (!Number.isInteger(quilometragem) || quilometragem < 0) errors.push('Informe a quilometragem como número inteiro.');
+      if (!(litros > 0)) errors.push('Informe a quantidade de litros maior que zero.');
+      if (litros > saldoLitros) errors.push(`Saldo insuficiente: disponível ${Utils.formatQuantity(saldoLitros)} L, solicitado ${Utils.formatQuantity(litros)} L.`);
+      if (!Utils.normalizeText(data.responsavel)) errors.push('Informe o responsável.');
+      if (errors.length) {
+        UI.showErrors(main.querySelector('#form-errors'), errors);
+        return;
+      }
+      // Calcula valor unitário a partir do último preço de entrada (ou 0 se não houver)
+      const entradas = (ctx.state.entradasCombustivel || []).slice().sort((a, b) => b.data.localeCompare(a.data));
+      const ultimoPreco = entradas.length ? entradas[0].valorUnitario : 0;
+      const valorTotal = Utils.round2(litros * ultimoPreco);
+      const abastecimento = {
+        id: Utils.nextId('ABS', ctx.state.abastecimentos, 4),
+        veiculoId: data.veiculoId,
+        dataHora: data.dataHora,
+        quilometragem,
+        litros,
+        valorTotal,
+        precoLitro: ultimoPreco,
+        posto: Utils.normalizeText(data.posto) || 'Estoque da empresa',
+        responsavel: Utils.normalizeText(data.responsavel),
+        observacao: Utils.normalizeText(data.observacao),
+        tanqueCheio: Boolean(data.tanqueCheio),
+      };
+      ctx.state.abastecimentos.push(abastecimento);
+      ctx.save().then(ok => {
+        if (!ok) return;
+        ctx.toast('Abastecimento do estoque registrado.');
+        ctx.refresh();
+      });
+    });
+
+    renderList();
+  }
+
+  return { list, form, stockEntry, fuelFromStock };
 })();
