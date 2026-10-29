@@ -498,6 +498,48 @@ describe("gestão de usuários", () => {
   });
 });
 
+describe("concorrência na administração de usuários", () => {
+  it("duas tentativas simultâneas de rebaixar os dois administradores não deixam a empresa sem administrador", async () => {
+    const empresaId = await h.criarEmpresa("admin-race-empresa");
+    await h.criarEstado(empresaId);
+    await h.criarUsuario({ empresaId, login: "race.admina", permissoes: ["admin", "relatorios"] });
+    await h.criarUsuario({ empresaId, login: "race.adminb", permissoes: ["admin", "relatorios"] });
+    const adminA = await h.entrar("race.admina");
+    const adminB = await h.entrar("race.adminb");
+    const idA = (await h.sql("SELECT id FROM app_users WHERE login = 'race.admina'"))[0].id;
+    const idB = (await h.sql("SELECT id FROM app_users WHERE login = 'race.adminb'"))[0].id;
+
+    const resultados = await Promise.all([
+      h.requisitar("PATCH", `/api/v1/users/${idB}`, {
+        cookies: adminA.cookies,
+        csrf: adminA.csrf,
+        corpo: { permissoes: ["relatorios"] },
+      }),
+      h.requisitar("PATCH", `/api/v1/users/${idA}`, {
+        cookies: adminB.cookies,
+        csrf: adminB.csrf,
+        corpo: { permissoes: ["relatorios"] },
+      }),
+    ]);
+
+    assert.equal(resultados.filter((r) => r.status === 200).length, 1,
+      "somente uma das duas alterações pode remover o último administrador");
+    assert.ok(resultados.some((r) => r.status === 422 || r.status === 403),
+      "a segunda alteração deve ser bloqueada pela regra de administrador ou pela autorização atual");
+
+    const ativos = await h.sql(
+      `SELECT COUNT(*)::int AS total
+         FROM company_memberships m
+         JOIN app_users u ON u.id = m.user_id
+        WHERE m.company_id = $1
+          AND m.active = TRUE AND u.active = TRUE
+          AND 'admin' = ANY(m.permissions)`,
+      [empresaId],
+    );
+    assert.ok(ativos[0].total >= 1, "a empresa deve manter pelo menos um administrador ativo");
+  });
+});
+
 describe("falhas do banco", () => {
   it("indisponibilidade do banco responde 503 sem expor host, porta ou mensagem interna", async () => {
     const original = process.env.DATABASE_URL;
