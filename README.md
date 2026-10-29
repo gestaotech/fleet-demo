@@ -202,8 +202,9 @@ Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
    a escrita é controlada por módulo).
 3. **Limite de tentativas e bloqueios** são persistidos por chave de tempo; em alta concorrência podem
    existir poucas tentativas além do limite.
-4. **Último administrador:** a regra é verificada antes da gravação. Duas edições simultâneas e opostas
-   podem, em tese, passar pela verificação (ver `api/v1/users/[id].js`).
+4. **Último administrador:** a migração `004_guardia_ultimo_administrador.sql` serializa edições por empresa
+   e valida a regra no PostgreSQL antes de gravar usuário, vínculo, revogação de sessões e auditoria na mesma
+   transação. Aplicar e validar a migração em banco de teste antes de liberar a alteração em produção.
 5. **Login global:** o nome de acesso é único em toda a plataforma (não por empresa).
 6. **Uma empresa ativa por sessão:** a troca de empresa ainda não tem tela; o login escolhe o primeiro vínculo ativo.
 7. **Sem ação de reset de senha** pela interface: o administrador redefine a senha do usuário.
