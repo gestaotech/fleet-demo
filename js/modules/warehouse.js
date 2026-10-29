@@ -208,6 +208,14 @@ const WarehouseScreens = (function () {
               <option value="Zerado">Zeradas</option>
             </select>
           </label>
+          <label class="field">Uso
+            <select id="stock-uso">
+              <option value="Todos">Todos</option>
+              <option value="Nova">Nova</option>
+              <option value="Usada">Usada</option>
+              <option value="Nova e usada">Nova e usada</option>
+            </select>
+          </label>
           <div class="field field-action">
             <button type="button" class="btn btn-ghost" id="stock-clear">Limpar pesquisa</button>
           </div>
@@ -220,8 +228,9 @@ const WarehouseScreens = (function () {
       const termInput = main.querySelector('#stock-term');
       const term = termInput.value;
       const situacao = main.querySelector('#stock-situacao').value;
-      const filtered = Warehouse.filterInventory(rows, { termo: term, situacao });
-      const filtrando = Boolean(Utils.normalizeText(term)) || situacao !== 'Todas';
+      const uso = main.querySelector('#stock-uso').value;
+      const filtered = Warehouse.filterInventory(rows, { termo: term, situacao, uso });
+      const filtrando = Boolean(Utils.normalizeText(term)) || situacao !== 'Todas' || uso !== 'Todos';
       main.querySelector('#stock-summary').textContent = filtrando
         ? `Exibindo ${filtered.length} de ${rows.length} peças para o filtro atual.`
         : `${rows.length} peças cadastradas.`;
@@ -229,7 +238,7 @@ const WarehouseScreens = (function () {
         [
           { label: 'Código' }, { label: 'Descrição' }, { label: 'Valor unitário', align: 'right' },
           { label: 'Saldo', align: 'right' }, { label: 'Mínimo', align: 'right' }, { label: 'Data de entrada' },
-          { label: 'Situação' }, { label: '' },
+          { label: 'Situação' }, { label: 'Uso' }, { label: '' },
         ],
         filtered.map(r => [
           esc(r.codigo),
@@ -239,6 +248,7 @@ const WarehouseScreens = (function () {
           String(r.estoqueMinimo),
           Utils.formatDate(r.dataEntrada),
           stockBadge(r),
+          r.situacaoUso === 'Nova' ? UI.badge('Nova', 'ok') : (r.situacaoUso === 'Usada' ? UI.badge('Usada', 'muted') : UI.badge('Nova e usada', 'info')),
           `<div class="row-actions"><a class="link" href="#/almoxarifado/estoque/${esc(r.id)}">Movimentações</a><a class="link" href="#/almoxarifado/estoque/${esc(r.id)}/editar">Editar</a></div>`,
         ]),
         filtrando ? 'Nenhuma peça corresponde à pesquisa ou aos filtros informados.' : 'Nenhuma peça cadastrada.',
@@ -246,9 +256,11 @@ const WarehouseScreens = (function () {
     };
     main.querySelector('#stock-term').addEventListener('input', renderTable);
     main.querySelector('#stock-situacao').addEventListener('change', renderTable);
+    main.querySelector('#stock-uso').addEventListener('change', renderTable);
     main.querySelector('#stock-clear').addEventListener('click', () => {
       main.querySelector('#stock-term').value = '';
       main.querySelector('#stock-situacao').value = 'Todas';
+      main.querySelector('#stock-uso').value = 'Todos';
       main.querySelector('#stock-term').focus();
       renderTable();
     });
