@@ -13,6 +13,7 @@
     "db:migrate": "node scripts/migrate.js",
     "db:seed": "node scripts/seed.js",
     "db:criar-admin": "node scripts/criar-admin.js",
+    "db:limpar-ficticios": "node scripts/limpar-dados-ficticios.js",
     "test": "node --test tests/unit/*.test.js",
     "test:legacy": "node --test tests/*.test.js",
     "test:integration": "node scripts/require-test-db.js && node --test --test-concurrency=1 tests/integration/*.test.js",
