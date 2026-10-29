@@ -84,7 +84,7 @@ Todas estão documentadas em `.env.example`. Resumo:
 | `IP_HASH_SALT` | sim em produção | Salt do hash de IP nos registros. |
 | `SESSION_TTL_HOURS` | não | Validade da sessão (1 a 720 h; padrão 8). |
 | `TRUSTED_PROXY_HEADERS` | só na Vercel | `"true"` faz o limite de tentativas usar `x-forwarded-for`. |
-| `ALLOW_SEED`, `SEED_*` | só no seed | Seed de dados de exemplo; recusado em produção. |
+| `ALLOW_SEED`, `SEED_*` | só no seed | Inicialização de workspace vazio; recusada em produção. |
 | `TEST_DATABASE_URL`, `TEST_DATABASE_RESET` | só nos testes de integração | Banco descartável. `TEST_DATABASE_RESET=sim` é obrigatório. |
 | `PORT` | não | Porta do `npm start` (padrão 8080). |
 
@@ -101,13 +101,13 @@ npm run db:migrate
 
 ## 5. Primeiro acesso
 
-### Inicialização com dados fictícios (somente desenvolvimento/teste)
+### Inicialização de ambiente vazio (somente desenvolvimento/teste)
 
 ```bash
 ALLOW_SEED=true SEED_ADMIN_PASSWORD="senha-com-10-ou-mais" npm run db:seed
 ```
 
-Cria a empresa, o administrador com todos os módulos e o estado inicial com dados fictícios. Execute apenas em banco de desenvolvimento/teste; o seed recusa ambiente de produção. Não existe senha padrão. As fixtures não são carregadas pelo navegador nem incluídas no pacote estático público.
+Cria a empresa e o administrador configurados pelas variáveis de ambiente, com o estado operacional vazio. Não insere veículos, peças, movimentações, manutenções nem abastecimentos fictícios. Execute apenas em banco de desenvolvimento/teste; o seed recusa ambiente de produção. Não existe senha padrão. As fixtures legadas são exclusivas para testes internos e não são carregadas pelo navegador nem incluídas no pacote estático público.
 
 ### Produção (sem dados de exemplo)
 
@@ -120,6 +120,22 @@ npm run db:criar-admin
 - Use variáveis apenas na sessão do terminal, sem gravá-las em arquivos.
 - O script não altera usuário existente e nunca imprime a senha.
 - Depois, crie os demais usuários pela tela **Administrador > Usuários e permissões**.
+
+### Limpeza de banco que contém exclusivamente dados fictícios
+
+O comando abaixo começa em modo somente leitura e mostra o banco conectado e as contagens. Ele não altera nada sem as três confirmações explícitas. Faça backup/ponto de restauração antes de confirmar. Nunca execute apontando para um banco com dados reais.
+
+```bash
+npm run db:limpar-ficticios
+```
+
+Depois de conferir o nome do banco e fazer backup, execute novamente com as variáveis de confirmação no terminal local. Substitua `NOME_EXATO_DO_BANCO` pelo nome que o relatório mostrou:
+
+```bash
+CONFIRMAR_LIMPEZA_DADOS_FICTICIOS=SIM CONFIRMAR_NOME_BANCO="NOME_EXATO_DO_BANCO" CONFIRMAR_BACKUP_FEITO=SIM npm run db:limpar-ficticios
+```
+
+A limpeza remove registros de empresas, usuários, vínculos, sessões, tentativas de login, estado operacional e auditoria; preserva as tabelas e o histórico de migrações. O script recusa ambiente de produção da Vercel/Node. Execute localmente e confira cuidadosamente as variáveis de conexão antes de confirmar. Após a limpeza, crie o administrador real com `npm run db:criar-admin`.
 
 ## 6. Rodar localmente
 
