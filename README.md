@@ -2,8 +2,6 @@
 
 Sistema de gestão de frota para **Tarcísio Araújo Transportes**, desenvolvido pela **Gestão Tech**.
 
-> Sistema de gestão de frota para **Tarcísio Araújo Transportes**, desenvolvido pela **Gestão Tech**.
-
 ## Stack
 
 - **Interface:** HTML, CSS e JavaScript puro (sem React, Next.js, TypeScript ou Prisma).
@@ -23,8 +21,8 @@ Sistema de gestão de frota para **Tarcísio Araújo Transportes**, desenvolvido
 | Auditoria | **Integrada** (login, usuários, alterações de estado; tabela imutável por gatilho) |
 | Regras de negócio | **Preservadas** (mesmos módulos em `js/core`, com testes de regressão) |
 | Validação de integridade no servidor | **Integrada** (referências, quantidades positivas, estoque não negativo) |
-| Neon em produção | **Pendente**: o código foi testado com PostgreSQL local; a conexão ao Neon ainda não foi validada (ver *Limitações*) |
-| Publicação na Vercel | **Pendente**: não há deploy realizado |
+| Conexão com o Neon | **Conectividade confirmada pelo endpoint de saúde**; isso não substitui testes completos de todos os fluxos |
+| Deploy e fluxos completos | **Validar por ambiente**; o build/CI não comprova por si só todos os fluxos funcionais |
 
 A migração **ainda não está concluída** do ponto de vista de arquitetura final: os dados operacionais são
 guardados como um estado JSON por empresa (decisão para migrar sem reescrever os módulos). Tabelas
@@ -38,6 +36,7 @@ css/                         estilos
 js/                          interface e regras
   api.js                     cliente HTTP (CSRF, erros padronizados)
   storage.js                 estado operacional via API (sem LocalStorage)
+  data.js                    fixture fictícia legada para testes internos; nunca usada no seed nem publicada
   app.js                     boot, sessão, login, fila de gravação
   modules/                   telas (administrador, veículos, manutenção, óleo, combustível, almoxarifado, relatórios)
   core/                      regras de negócio puras (custos, consumo, óleo, saldo, períodos)
@@ -85,7 +84,7 @@ Todas estão documentadas em `.env.example`. Resumo:
 | `IP_HASH_SALT` | sim em produção | Salt do hash de IP nos registros. |
 | `SESSION_TTL_HOURS` | não | Validade da sessão (1 a 720 h; padrão 8). |
 | `TRUSTED_PROXY_HEADERS` | só na Vercel | `"true"` faz o limite de tentativas usar `x-forwarded-for`. |
-| `ALLOW_SEED`, `SEED_*` | só no seed | Seed de dados de exemplo; recusado em produção. |
+| `ALLOW_SEED`, `SEED_*` | só no seed | Inicialização de workspace vazio; recusada em produção. |
 | `TEST_DATABASE_URL`, `TEST_DATABASE_RESET` | só nos testes de integração | Banco descartável. `TEST_DATABASE_RESET=sim` é obrigatório. |
 | `PORT` | não | Porta do `npm start` (padrão 8080). |
 
@@ -102,14 +101,13 @@ npm run db:migrate
 
 ## 5. Primeiro acesso
 
-### Inicialização com dados de exemplo (seed)
+### Inicialização de ambiente vazio (somente desenvolvimento/teste)
 
 ```bash
 ALLOW_SEED=true SEED_ADMIN_PASSWORD="senha-com-10-ou-mais" npm run db:seed
 ```
 
-Cria a empresa, o administrador com todos os módulos e o estado inicial com dados de exemplo.
-Não existe senha padrão. O seed não grava as antigas senhas `demo123`.
+Cria a empresa e o administrador configurados pelas variáveis de ambiente, com o estado operacional vazio. Não insere veículos, peças, movimentações, manutenções nem abastecimentos fictícios. Execute apenas em banco de desenvolvimento/teste; o seed recusa ambiente de produção. Não existe senha padrão. As fixtures legadas são exclusivas para testes internos e não são carregadas pelo navegador nem incluídas no pacote estático público.
 
 ### Produção (sem dados de exemplo)
 
@@ -122,6 +120,22 @@ npm run db:criar-admin
 - Use variáveis apenas na sessão do terminal, sem gravá-las em arquivos.
 - O script não altera usuário existente e nunca imprime a senha.
 - Depois, crie os demais usuários pela tela **Administrador > Usuários e permissões**.
+
+### Limpeza de banco que contém exclusivamente dados fictícios
+
+O comando abaixo começa em modo somente leitura e mostra o banco conectado e as contagens. Ele não altera nada sem as três confirmações explícitas. Faça backup/ponto de restauração antes de confirmar. Nunca execute apontando para um banco com dados reais.
+
+```bash
+npm run db:limpar-ficticios
+```
+
+Depois de conferir o nome do banco e fazer backup, execute novamente com as variáveis de confirmação no terminal local. Substitua `NOME_EXATO_DO_BANCO` pelo nome que o relatório mostrou:
+
+```bash
+CONFIRMAR_LIMPEZA_DADOS_FICTICIOS=SIM CONFIRMAR_NOME_BANCO="NOME_EXATO_DO_BANCO" CONFIRMAR_BACKUP_FEITO=SIM npm run db:limpar-ficticios
+```
+
+A limpeza remove registros de empresas, usuários, vínculos, sessões, tentativas de login, estado operacional e auditoria; preserva as tabelas e o histórico de migrações. O script recusa ambiente de produção da Vercel/Node. Execute localmente e confira cuidadosamente as variáveis de conexão antes de confirmar. Após a limpeza, crie o administrador real com `npm run db:criar-admin`.
 
 ## 6. Rodar localmente
 
@@ -198,22 +212,19 @@ Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
 
 ## 11. Limitações conhecidas
 
-1. **Neon validado.** O adaptador HTTP do Neon (`lib/db.js`) foi testado contra o banco Neon real:
-   migrações aplicadas (001, 002, 003), seed executado, health retorna `"database": "connected"`,
-   login funciona e os 35 testes de integração passaram contra um banco de teste no Neon.
+1. **Conectividade do Neon:** a verificação `/api/v1/health` retornou `{"ok":true,"service":"fleet-demo-api","database":"connected","configuracao":"ok"}` no ambiente verificado. Isso confirma a conectividade do endpoint com o banco naquele momento, mas não comprova todos os fluxos de login, gravação, permissões e relatórios. Confirme as migrações e execute os testes de integração em banco de teste separado antes de liberar alterações.
 2. **Estado operacional em JSON por empresa.** Gravar o estado inteiro é simples e seguro contra conflitos,
    mas não permite consultas relacionais nem permissões de leitura por coleção (a leitura é da empresa inteira;
    a escrita é controlada por módulo).
 3. **Limite de tentativas e bloqueios** são persistidos por chave de tempo; em alta concorrência podem
    existir poucas tentativas além do limite.
-4. **Último administrador:** a regra é verificada antes da gravação. Duas edições simultâneas e opostas
-   podem, em tese, passar pela verificação (ver `api/v1/users/[id].js`).
+4. **Último administrador:** a edição agora serializa as alterações por empresa em uma transação e revalida a quantidade de administradores após obter o lock. O teste de integração cobre desativações simultâneas; o CI precisa confirmar o comportamento.
 5. **Login global:** o nome de acesso é único em toda a plataforma (não por empresa).
 6. **Uma empresa ativa por sessão:** a troca de empresa ainda não tem tela; o login escolhe o primeiro vínculo ativo.
 7. **Sem ação de reset de senha** pela interface: o administrador redefine a senha do usuário.
 8. **Interface:** as telas de manutenção, combustível e relatórios continuam as mesmas do sistema;
    foram testadas nos fluxos de cadastro, gravação e permissão, mas não há teste automatizado de navegador.
-9. **Publicação:** nenhum deploy foi feito. Não há ambiente publicado para o cliente. O código está pronto para deploy na Vercel (ver seção 8).
+9. **Deploy e validação funcional:** um check de build/CI bem-sucedido não comprova todos os fluxos no ambiente publicado. Validar login, leitura e gravação, permissões, auditoria e relatórios em preview antes de liberar ao cliente.
 10. **Exclusão de registros:** a interface não remove registros (apenas desativa usuários e veículos). A exclusão
     autorizada precisa ser planejada antes de ser exposta ao cliente.
 11. **Validação parcial de regras no servidor:** a API valida formato, referências e estoque, mas não todas as
@@ -225,8 +236,8 @@ Detalhes e contratos da API: [`docs/api.md`](docs/api.md).
 
 ## 12. Próximas etapas
 
-1. Validar o Neon: migrar, criar o administrador e rodar `npm run test:integration` contra um banco de teste do Neon.
-2. Publicar um preview na Vercel e validar `/api/v1/health` e o fluxo de login.
+1. Confirmar que as migrações necessárias estão aplicadas no ambiente correto e rodar `npm run test:integration` contra um banco de teste separado (nunca contra o banco operacional), incluindo o cenário concorrente de último administrador.
+2. Validar em preview da Vercel `/api/v1/health`, login, leitura/gravação, permissões, auditoria e relatórios.
 3. Migrar o estado JSON para tabelas relacionais por entidade, mantendo as regras de `js/core`.
 4. Testes de navegador (ponta a ponta) para os fluxos principais.
 5. Troca de empresa para usuários com vínculo em mais de uma empresa.

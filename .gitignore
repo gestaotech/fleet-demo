@@ -1,6 +1,9 @@
 # Dependências
 /node_modules
 
+# Saída gerada no build
+/public
+
 # Variáveis de ambiente locais (nunca versionar segredos)
 .env
 .env.*

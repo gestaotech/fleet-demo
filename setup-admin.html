@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Configuração inicial | Gestão Tech</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <main class="login-wrap">
+    <section class="card login-card">
+      <h1>Configuração inicial</h1>
+      <p>Crie o primeiro administrador. Esta tela só funciona quando o banco ainda não tem nenhum usuário e o token temporário está configurado no servidor.</p>
+      <form id="setup-admin-form">
+        <label for="token">Token temporário de configuração</label>
+        <input id="token" name="token" type="password" autocomplete="off" required minlength="32">
+
+        <label for="login">Login do administrador</label>
+        <input id="login" name="login" value="gestaotech" autocomplete="username" minlength="3" maxlength="20" pattern="[a-z0-9._-]{3,20}" required>
+
+        <label for="nome">Nome</label>
+        <input id="nome" name="nome" value="Administrador Gestão Tech" autocomplete="name" minlength="3" maxlength="120" required>
+
+        <label for="senha">Senha forte (mínimo de 10 caracteres)</label>
+        <input id="senha" name="senha" type="password" autocomplete="new-password" minlength="10" maxlength="200" required>
+
+        <label for="empresaNome">Nome da empresa</label>
+        <input id="empresaNome" name="empresaNome" value="Tarcísio Araújo Transportes" maxlength="160" required>
+
+        <label for="empresaSlug">Identificador da empresa</label>
+        <input id="empresaSlug" name="empresaSlug" value="tarcisio-araujo-transportes" pattern="[a-z0-9-]{3,60}" minlength="3" maxlength="60" required>
+
+        <button class="btn btn-primary btn-block" type="submit">Criar administrador</button>
+      </form>
+      <p id="setup-status" role="status" aria-live="polite"></p>
+      <p class="muted">Após criar e testar o acesso, remova o token temporário da Vercel. Não compartilhe o token nem a senha.</p>
+    </section>
+  </main>
+  <script src="js/setup-admin.js"></script>
+</body>
+</html>

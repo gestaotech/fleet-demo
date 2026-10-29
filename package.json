@@ -2,17 +2,18 @@
   "name": "fleet-demo",
   "version": "3.1.0",
   "private": true,
-  "description": "Demonstração de gestão de frota em HTML, CSS, JavaScript, funções Vercel e Neon PostgreSQL - Gestão Tech",
+  "description": "Sistema de gestão de frota em HTML, CSS, JavaScript, funções Vercel e Neon PostgreSQL - Gestão Tech",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "dev": "vercel dev",
     "start": "node scripts/serve.js",
-    "build": "node scripts/check-static.js",
+    "build": "node scripts/check-static.js && node scripts/build-static.js",
     "db:migrate": "node scripts/migrate.js",
     "db:seed": "node scripts/seed.js",
     "db:criar-admin": "node scripts/criar-admin.js",
+    "db:limpar-ficticios": "node scripts/limpar-dados-ficticios.js",
     "test": "node --test tests/unit/*.test.js",
     "test:legacy": "node --test tests/*.test.js",
     "test:integration": "node scripts/require-test-db.js && node --test --test-concurrency=1 tests/integration/*.test.js",

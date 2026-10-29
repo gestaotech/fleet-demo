@@ -498,6 +498,45 @@ describe("gestão de usuários", () => {
     const tentativa = await h.requisitar("POST", "/api/v1/auth/login", { corpo: { login: "usr.comum", senha: "nova-senha-forte-2" } });
     assert.equal(tentativa.status, 401);
   });
+
+  it("serializa desativações simultâneas e preserva ao menos um administrador ativo", async () => {
+    const empresaConcorrente = await h.criarEmpresa("usuarios-concorrencia-admin");
+    await h.criarEstado(empresaConcorrente);
+    const idA = await h.criarUsuario({
+      empresaId: empresaConcorrente,
+      login: "conc.admina",
+      permissoes: ["admin", "relatorios"],
+    });
+    const idB = await h.criarUsuario({
+      empresaId: empresaConcorrente,
+      login: "conc.adminb",
+      permissoes: ["admin", "relatorios"],
+    });
+    const sessaoA = await h.entrar("conc.admina");
+    const sessaoB = await h.entrar("conc.adminb");
+
+    const resultados = await Promise.all([
+      h.requisitar("PATCH", `/api/v1/users/${idB}`, {
+        cookies: sessaoA.cookies, csrf: sessaoA.csrf, corpo: { ativo: false },
+      }),
+      h.requisitar("PATCH", `/api/v1/users/${idA}`, {
+        cookies: sessaoB.cookies, csrf: sessaoB.csrf, corpo: { ativo: false },
+      }),
+    ]);
+
+    const administradoresAtivos = await h.sql(
+      `SELECT COUNT(*)::int AS total
+         FROM company_memberships m
+         JOIN app_users u ON u.id = m.user_id
+        WHERE m.company_id = $1
+          AND m.active = TRUE AND u.active = TRUE
+          AND 'admin' = ANY(m.permissions)`,
+      [empresaConcorrente],
+    );
+    assert.equal(administradoresAtivos[0].total, 1, "a concorrência nunca pode remover todos os administradores");
+    assert.equal(resultados.filter((r) => r.status === 200).length, 1, "somente uma desativação pode ser concluída");
+    assert.ok(resultados.some((r) => [401, 422].includes(r.status)), "a segunda operação deve ser bloqueada");
+  });
 });
 
 describe("falhas do banco", () => {

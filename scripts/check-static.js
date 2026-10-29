@@ -19,6 +19,9 @@ const ARQUIVOS_OBRIGATORIOS = [
   "js/api.js",
   "js/storage.js",
   "api/v1/health.js",
+  "api/v1/setup/admin.js",
+  "setup-admin.html",
+  "js/setup-admin.js",
   "api/v1/auth/login.js",
   "api/v1/auth/logout.js",
   "api/v1/auth/session.js",
@@ -49,5 +52,18 @@ for (const nome of esperadas) {
   }
 }
 
+const scriptSeed = fs.readFileSync(path.join(RAIZ, "scripts", "seed.js"), "utf8");
+if (/js\/data\.js|DemoData\.createSeed/.test(scriptSeed)) {
+  console.error("O seed não pode carregar fixtures fictícias; deve criar um workspace vazio.");
+  process.exit(1);
+}
+
+const htmlPrincipal = fs.readFileSync(path.join(RAIZ, "index.html"), "utf8");
+if (/src=["\']js\/data\.js["\']/.test(htmlPrincipal)) {
+  console.error("index.html não pode carregar dados fictícios de desenvolvimento.");
+  process.exit(1);
+}
+
 console.log("Estrutura estática, API e migrações verificadas.");
 console.log("A conexão com o Neon deve ser validada em /api/v1/health após configurar DATABASE_URL.");
+console.log("O bootstrap temporário só será publicado quando ADMIN_BOOTSTRAP_TOKEN tiver ao menos 32 caracteres no build.");
