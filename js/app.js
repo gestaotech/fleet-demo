@@ -41,6 +41,8 @@ const App = (function () {
     oilForm: OilScreens.form,
     fuelList: FuelScreens.list,
     fuelForm: FuelScreens.form,
+    fuelStockEntry: FuelScreens.stockEntry,
+    fuelFromStock: FuelScreens.fuelFromStock,
     reportGeneral: ReportScreens.general,
     reportVehicles: ReportScreens.vehicles,
     reportWarehouse: ReportScreens.warehouse,
@@ -78,6 +80,8 @@ const App = (function () {
     combustivel: [
       { label: 'Abastecimentos', href: '#/combustivel' },
       { label: 'Novo abastecimento', href: '#/combustivel/novo' },
+      { label: 'Entrada de combustível', href: '#/combustivel/entrada' },
+      { label: 'Abastecimento do estoque', href: '#/combustivel/estoque' },
     ],
     relatorios: [],
   };

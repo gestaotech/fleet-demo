@@ -33,6 +33,8 @@ const Router = (function () {
     { path: '/manutencao/:id', page: 'maintenanceDetail' },
     { path: '/combustivel', page: 'fuelList' },
     { path: '/combustivel/novo', page: 'fuelForm' },
+    { path: '/combustivel/entrada', page: 'fuelStockEntry' },
+    { path: '/combustivel/estoque', page: 'fuelFromStock' },
     { path: '/combustivel/:id/editar', page: 'fuelForm' },
     { path: '/relatorios', redirect: '/relatorios/geral' },
     { path: '/relatorios/geral', page: 'reportGeneral' },
