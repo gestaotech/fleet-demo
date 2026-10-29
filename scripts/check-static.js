@@ -18,7 +18,6 @@ const ARQUIVOS_OBRIGATORIOS = [
   "js/app.js",
   "js/api.js",
   "js/storage.js",
-  "js/data.js",
   "api/v1/health.js",
   "api/v1/auth/login.js",
   "api/v1/auth/logout.js",

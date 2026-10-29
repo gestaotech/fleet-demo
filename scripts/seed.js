@@ -1,7 +1,7 @@
 "use strict";
 
 /*
- * Inicialização controlada de DEMONSTRAÇÃO/DESENVOLVIMENTO.
+ * Inicialização controlada de dados de exemplo / desenvolvimento.
  *
  * Cria (ou atualiza, sem trocar senhas existentes) a empresa, o usuário
  * administrador com todos os módulos e o estado operacional inicial, carregado de
@@ -36,9 +36,9 @@ function exigirAmbienteSeguro() {
   }
 }
 
-/* Estado inicial a partir de js/data.js (fictício), sem a coleção de usuários. */
+/* Estado inicial a partir de tests/fixtures/data.js (dados de exemplo), sem a coleção de usuários. */
 function estadoInicial() {
-  const codigo = fs.readFileSync(path.join(__dirname, "..", "js", "data.js"), "utf8");
+  const codigo = fs.readFileSync(path.join(__dirname, "..", "tests", "fixtures", "data.js"), "utf8");
   const DemoData = vm.runInNewContext(`${codigo}\nDemoData;`, {});
   const semente = DemoData.createSeed();
   delete semente.usuarios;
@@ -48,8 +48,8 @@ function estadoInicial() {
 async function main() {
   exigirAmbienteSeguro();
 
-  const nomeEmpresa = process.env.SEED_COMPANY_NAME || "Empresa Demonstração";
-  const slug = (process.env.SEED_COMPANY_SLUG || "empresa-demonstracao").toLowerCase();
+  const nomeEmpresa = process.env.SEED_COMPANY_NAME || "Empresa Exemplo";
+  const slug = (process.env.SEED_COMPANY_SLUG || "empresa-exemplo").toLowerCase();
   const login = (process.env.SEED_ADMIN_LOGIN || "admin").trim().toLowerCase();
   const nomeAdmin = process.env.SEED_ADMIN_NAME || "Administrador";
   const senha = process.env.SEED_ADMIN_PASSWORD || "";
@@ -120,7 +120,7 @@ async function main() {
         "INSERT INTO fleet_workspace_state (company_id, schema_version, state, revision, updated_by) VALUES ($1, 2, $2::jsonb, 1, $3)",
         [empresaId, JSON.stringify(estado), usuarioId],
       );
-      console.log("[seed] Estado operacional inicial criado (dados fictícios).");
+      console.log("[seed] Estado operacional inicial criado (dados de exemplo).");
     } else if (process.env.SEED_RESET_WORKSPACE === "true") {
       await client.query(
         "UPDATE fleet_workspace_state SET state = $2::jsonb, revision = revision + 1, updated_at = NOW() WHERE company_id = $1",

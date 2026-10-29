@@ -198,30 +198,16 @@ const AdminScreens = (function () {
 
   function dataPage(main, params, ctx) {
     main.innerHTML = `
-      ${pageHeader('Dados e inicialização', 'Restaurar ou inicializar os dados operacionais da empresa.')}
-      <section class="card">
-        <h2>Restaurar dados originais</h2>
-        <p>Substitui os dados operacionais desta empresa pelo conjunto inicial de dados, gravado no servidor.</p>
-        <button type="button" class="btn btn-danger" id="restore-data">Restaurar dados originais</button>
-      </section>
+      ${pageHeader('Administração do Sistema', 'Informações sobre o sistema e os dados operacionais.')}
       <section class="card">
         <h2>Informações sobre este sistema</h2>
         <ul>
-          <li>Os dados ficam no banco da empresa, sem dados reais de clientes.</li>
+          <li>Os dados operacionais são armazenados no banco de dados da empresa (Neon PostgreSQL).</li>
           <li>Ao gravar, o sistema confirma a alteração apenas depois da resposta do servidor.</li>
           <li>Se outro usuário alterar os dados ao mesmo tempo, a gravação é recusada e a página deve ser recarregada.</li>
+          <li>Para inicializar ou restaurar dados de exemplo, utilize o script de seed (npm run db:seed) com as proteções de ambiente adequadas.</li>
         </ul>
       </section>`;
-    main.querySelector('#restore-data').addEventListener('click', () => {
-      if (!UI.confirmAction('Restaurar todos os dados para o conjunto original? As alterações feitas serão perdidas.')) return;
-      const semente = DemoData.createSeed();
-      delete semente.usuarios;
-      ctx.setState(semente).then(ok => {
-        if (!ok) return;
-        ctx.toast('Dados originais restaurados.');
-        ctx.refresh();
-      });
-    });
   }
 
   return { home, users, userForm, settings, dataPage };
