@@ -19,6 +19,9 @@ const ARQUIVOS_OBRIGATORIOS = [
   "js/api.js",
   "js/storage.js",
   "api/v1/health.js",
+  "api/v1/setup/admin.js",
+  "setup-admin.html",
+  "js/setup-admin.js",
   "api/v1/auth/login.js",
   "api/v1/auth/logout.js",
   "api/v1/auth/session.js",
@@ -63,3 +66,4 @@ if (/src=["\']js\/data\.js["\']/.test(htmlPrincipal)) {
 
 console.log("Estrutura estática, API e migrações verificadas.");
 console.log("A conexão com o Neon deve ser validada em /api/v1/health após configurar DATABASE_URL.");
+console.log("O bootstrap temporário só será publicado quando ADMIN_BOOTSTRAP_TOKEN tiver ao menos 32 caracteres no build.");
