@@ -49,6 +49,12 @@ for (const nome of esperadas) {
   }
 }
 
+const scriptSeed = fs.readFileSync(path.join(RAIZ, "scripts", "seed.js"), "utf8");
+if (/js\/data\.js|DemoData\.createSeed/.test(scriptSeed)) {
+  console.error("O seed não pode carregar fixtures fictícias; deve criar um workspace vazio.");
+  process.exit(1);
+}
+
 const htmlPrincipal = fs.readFileSync(path.join(RAIZ, "index.html"), "utf8");
 if (/src=["\']js\/data\.js["\']/.test(htmlPrincipal)) {
   console.error("index.html não pode carregar dados fictícios de desenvolvimento.");
