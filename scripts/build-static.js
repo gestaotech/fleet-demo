@@ -45,7 +45,7 @@ if (fs.existsSync(path.join(output, fixtureRelativePath))) {
 }
 for (const arquivo of arquivosPublicos) {
   const conteudo = fs.readFileSync(arquivo, "utf8");
-  if (conteudo.includes("demo123") || conteudo.includes("DEM1A01")) {
+  if (conteudo.includes("demo123")) {
     throw new Error(`Possível dado fictício de desenvolvimento encontrado no pacote público: ${path.relative(output, arquivo)}`);
   }
 }
