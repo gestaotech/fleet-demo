@@ -33,7 +33,6 @@ const { hashPassword } = require("../../../lib/security");
 const {
   validarIdentificador,
   validarEdicao,
-  validarAdministradorRestante,
 } = require("../../../lib/users");
 const { paraArrayPg } = require("../../../lib/permissions");
 
@@ -44,44 +43,6 @@ const SQL_BUSCAR = `
     JOIN app_users u ON u.id = m.user_id
    WHERE m.user_id = $1::uuid AND m.company_id = $2::uuid`;
 
-const SQL_CONTAR_OUTROS_ADMINS = `
-  SELECT COUNT(*)::int AS total
-    FROM company_memberships m
-    JOIN app_users u ON u.id = m.user_id
-   WHERE m.company_id = $1::uuid
-     AND m.user_id <> $2::uuid
-     AND m.active = TRUE AND u.active = TRUE
-     AND 'admin' = ANY(m.permissions)`;
-
-/*
- * Atualização do usuário, do vínculo, das sessões e da auditoria em uma instrução.
- * Campos não informados chegam com o valor atual, então a instrução é sempre completa.
- */
-const SQL_ATUALIZAR = `
-WITH usuario AS (
-  UPDATE app_users
-     SET name = $2::text, cargo = $3::text, active = $4::boolean,
-         password_hash = COALESCE($5::text, password_hash), updated_at = NOW()
-   WHERE id = $1::uuid
-  RETURNING id
-), vinculo AS (
-  UPDATE company_memberships
-     SET permissions = $6::text[], active = $4::boolean,
-         role = CASE WHEN 'admin' = ANY($6::text[]) THEN 'ADMIN' ELSE 'MEMBER' END,
-         updated_at = NOW()
-   WHERE user_id = $1::uuid AND company_id = $7::uuid
-  RETURNING id
-), sessoes AS (
-  UPDATE app_sessions SET revoked_at = NOW()
-   WHERE user_id = $1::uuid AND revoked_at IS NULL AND $8::boolean
-  RETURNING id
-), auditoria AS (
-  INSERT INTO audit_logs (company_id, actor_user_id, action, entity, entity_id, result, metadata, ip_hash, user_agent)
-  SELECT $7::uuid, $9::uuid, 'USUARIO_ATUALIZADO', 'app_users', $1::text, 'SUCCESS', $10::jsonb, $11::text, $12::text
-    FROM usuario
-  RETURNING id
-)
-SELECT id FROM usuario`;
 
 function validarMesmoUsuarioSemAutoAlteracao(id, sessao, corpo, atual) {
   if (id !== sessao.usuario.id) return;
@@ -117,29 +78,36 @@ async function handler(req, res) {
     ativo: atual.ativo && atual.vinculo_ativo,
   });
 
-  const eraAdministradorAtivo = Boolean(atual.ativo && atual.vinculo_ativo && atual.permissoes.includes("admin"));
-  if (eraAdministradorAtivo) {
-    const outros = await consultar(SQL_CONTAR_OUTROS_ADMINS, [sessao.empresa.id, id]);
-    validarAdministradorRestante(final, true, outros[0].total);
-  }
-
   const revogarSessoes = final.ativo === false || senha !== null;
-  const atualizado = await consultar(SQL_ATUALIZAR, [
-    id,
-    final.nome,
-    final.cargo,
-    final.ativo,
-    senha ? hashPassword(senha) : null,
-    paraArrayPg(final.permissoes),
-    sessao.empresa.id,
-    revogarSessoes,
-    sessao.usuario.id,
-    JSON.stringify({ camposAlterados }),
-    hashIp(req),
-    userAgent(req),
-  ]);
-  if (!atualizado[0]) {
+  const atualizado = await consultar(
+    `SELECT * FROM atualizar_usuario_com_guardia(
+      $1::uuid, $2::uuid, $3::text, $4::text, $5::boolean, $6::text,
+      $7::text[], $8::boolean, $9::uuid, $10::jsonb, $11::text, $12::text
+    )`,
+    [
+      id,
+      sessao.empresa.id,
+      final.nome,
+      final.cargo,
+      final.ativo,
+      senha ? hashPassword(senha) : null,
+      paraArrayPg(final.permissoes),
+      revogarSessoes,
+      sessao.usuario.id,
+      JSON.stringify({ camposAlterados }),
+      hashIp(req),
+      userAgent(req),
+    ],
+  );
+  const resultado = atualizado[0];
+  if (!resultado || resultado.error_code === "USUARIO_NAO_ENCONTRADO") {
     throw new ApiError(404, "USUARIO_NAO_ENCONTRADO", "Usuário não encontrado nesta empresa.");
+  }
+  if (resultado.error_code === "ULTIMO_ADMINISTRADOR") {
+    throw new ApiError(422, "ULTIMO_ADMINISTRADOR", "Mantenha ao menos um administrador ativo na empresa.");
+  }
+  if (!resultado.updated_user_id) {
+    throw new ApiError(500, "BANCO_ERRO", "Não foi possível concluir a operação.");
   }
 
   enviarDados(res, 200, {
