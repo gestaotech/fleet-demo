@@ -4,8 +4,7 @@
  * Inicialização controlada de DEMONSTRAÇÃO/DESENVOLVIMENTO.
  *
  * Cria (ou atualiza, sem trocar senhas existentes) a empresa, o usuário
- * administrador com todos os módulos e o estado operacional inicial, carregado de
- * js/data.js (dados fictícios). Nenhuma senha padrão é gravada.
+ * administrador com todos os módulos e um estado operacional vazio. Nenhuma senha padrão é gravada.
  *
  * Proteções:
  *  - exige ALLOW_SEED=true;
@@ -33,13 +32,15 @@ function exigirAmbienteSeguro() {
   }
 }
 
-/* Estado inicial a partir de js/data.js (fictício), sem a coleção de usuários. */
+/* Estado inicial vazio: o seed nunca deve inserir veículos, peças ou movimentações fictícias. */
 function estadoInicial() {
-  const codigo = fs.readFileSync(path.join(__dirname, "..", "js", "data.js"), "utf8");
-  const DemoData = vm.runInNewContext(`${codigo}\nDemoData;`, {});
-  const semente = DemoData.createSeed();
-  delete semente.usuarios;
-  return semente;
+  return {
+    schemaVersion: 2,
+    configuracoes: { alertaTrocaOleoKm: 1000, alertaTrocaOleoDias: 30 },
+    ...Object.fromEntries(
+      COLECOES.filter((colecao) => colecao !== "configuracoes").map((colecao) => [colecao, []]),
+    ),
+  };
 }
 
 async function main() {
