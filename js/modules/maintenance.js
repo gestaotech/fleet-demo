@@ -8,8 +8,7 @@ const MaintenanceScreens = (function () {
         '<a class="btn btn-primary" href="#/manutencao/nova">Nova manutenção</a>')}
       <section class="card">
         <div class="filter-bar">
-          <label class="field">Veículo (placa)<input type="text" id="m-veiculo" placeholder="Todos" list="maint-vehicle-list" autocomplete="off">
-          <datalist id="maint-vehicle-list">${ctx.state.veiculos.map(v => `<option value="${esc(v.placa)}">${esc(v.marca)}${v.situacao === 'Inativo' ? ' (inativo)' : ''}</option>`).join('')}</datalist></label>
+          <label class="field">Veículo (placa)${UI.searchInput('vehicle', ctx.state, { id: 'm-veiculo', placeholder: 'Todos' })}</label>
           <label class="field">Situação<select id="m-status"><option value="Todos">Todas</option>${Maintenance.STATUS.map(s => option(s, s)).join('')}</select></label>
           <label class="field">Entrada de<input type="date" id="m-from"></label>
           <label class="field">Entrada até<input type="date" id="m-to"></label>
@@ -18,15 +17,8 @@ const MaintenanceScreens = (function () {
       </section>`;
 
     const render = () => {
-      const mVeiculoBusca = main.querySelector('#m-veiculo').value;
-      const mVeiculoId = (function() {
-        const t = Utils.normalizePlate(mVeiculoBusca);
-        if (!t || t === 'TODAS' || t === 'TODOS') return 'Todos';
-        const v = ctx.state.veiculos.find(vv => Utils.normalizePlate(vv.placa) === t);
-        return v ? v.id : mVeiculoBusca;
-      })();
       const rows = Maintenance.list(ctx.state, {
-        veiculoId: mVeiculoId,
+        veiculoId: Search.vehicleFilter(ctx.state, main.querySelector('#m-veiculo').value),
         status: main.querySelector('#m-status').value,
         from: main.querySelector('#m-from').value,
         to: main.querySelector('#m-to').value,
@@ -59,9 +51,7 @@ const MaintenanceScreens = (function () {
       ${pageHeader('Nova manutenção', 'A manutenção recebe um código próprio e começa com a situação Aberta.')}
       <form class="card form-grid" id="maintenance-form" novalidate>
         <div class="form-errors full" id="form-errors"></div>
-        <label class="field">Veículo
-          <select name="veiculoId" required><option value="">Selecione…</option>${ctx.state.veiculos.filter(Vehicles.isActive).map(v => option(v.id, `${v.placa} – ${v.marca}`)).join('')}</select>
-        </label>
+        <label class="field">Veículo (placa)${UI.searchField('vehicle', ctx.state, { id: 'maint-veiculo-busca', name: 'veiculoId', required: true, apenasAtivos: true })}</label>
         <label class="field">Data e hora de entrada<input name="dataEntrada" type="datetime-local" required value="${Utils.nowIso()}"></label>
         <label class="field">Quilometragem de entrada (km)
           <input name="quilometragem" type="number" min="0" step="1" inputmode="numeric" placeholder="Opcional">
@@ -88,8 +78,10 @@ const MaintenanceScreens = (function () {
       if (km !== null && !kmInput.value) kmInput.value = String(km);
     });
 
+    const syncSearch = UI.bindSearchFields(formEl, ctx.state);
     formEl.addEventListener('submit', event => {
       event.preventDefault();
+      syncSearch();
       const result = Maintenance.open(ctx.state, readForm(event.currentTarget));
       if (!result.ok) {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);

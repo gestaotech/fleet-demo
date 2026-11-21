@@ -19,19 +19,6 @@ const WarehouseScreens = (function () {
     return UI.badge('Normal', 'ok');
   }
 
-  function vehicleOptions(state, selectedId) {
-    return state.veiculos
-      .filter(v => v.situacao === 'Ativo')
-      .map(v => option(v.id, `${v.placa} – ${v.marca}`, v.id === selectedId))
-      .join('');
-  }
-
-  function partOptions(state, selectedId) {
-    return state.pecas
-      .map(p => option(p.id, `${p.codigo} – ${p.descricao} (saldo ${Warehouse.balance(state, p.id)})`, p.id === selectedId))
-      .join('');
-  }
-
   /* Opções de manutenção aberta; data-veiculo permite filtrar quando o veículo muda. */
   function openMaintenanceOptions(state) {
     return state.manutencoes
@@ -43,81 +30,28 @@ const WarehouseScreens = (function () {
       .join('');
   }
 
-  function bindVehicleMaintenanceFilter(form, state) {
-    const vehicleBusca = form.querySelector('[name="veiculoBusca"]');
-    const vehicleHidden = form.querySelector('[name="veiculoId"]');
+  /* Com veículo escolhido, mostra só as manutenções abertas dele; sem veículo, mostra todas. */
+  function bindVehicleMaintenanceFilter(form) {
+    const vehicle = form.querySelector('[name="veiculoId"]');
     const maintenance = form.querySelector('[name="manutencaoId"]');
-    if (!vehicleBusca || !maintenance) return;
+    if (!vehicle || !maintenance) return;
     const apply = () => {
-      const id = resolveVehicleId(state, vehicleBusca.value);
-      vehicleHidden.value = id || '';
       maintenance.querySelectorAll('option[data-veiculo]').forEach(opt => {
-        opt.hidden = id ? opt.dataset.veiculo !== id : false;
+        opt.hidden = Boolean(vehicle.value) && opt.dataset.veiculo !== vehicle.value;
       });
       if (maintenance.selectedOptions[0] && maintenance.selectedOptions[0].hidden) maintenance.value = '';
     };
-    vehicleBusca.addEventListener('input', apply);
-    vehicleBusca.addEventListener('change', apply);
+    vehicle.addEventListener('change', apply);
     apply();
   }
 
-  function resolvePartId(state, busca) {
-    const termo = Utils.searchKey(busca);
-    if (!termo) return null;
-    // Exact match by code
-    const porCodigo = state.pecas.find(p => Utils.searchKey(p.codigo) === termo);
-    if (porCodigo) return porCodigo.id;
-    // Match by description
-    const porDesc = state.pecas.filter(p => Utils.searchKey(p.descricao).includes(termo));
-    if (porDesc.length === 1) return porDesc[0].id;
-    // Match by code partial
-    const porCodigoParcial = state.pecas.filter(p => Utils.searchKey(p.codigo).includes(termo));
-    if (porCodigoParcial.length === 1) return porCodigoParcial[0].id;
-    return null;
-  }
-
-  function resolveVehicleId(state, busca) {
-    const termo = Utils.normalizePlate(busca);
-    if (!termo) return null;
-    const veiculo = state.veiculos.find(v => Utils.normalizePlate(v.placa) === termo);
-    if (veiculo) return veiculo.id;
-    // Partial match
-    const parcial = state.veiculos.filter(v => Utils.normalizePlate(v.placa).includes(termo) && v.situacao === 'Ativo');
-    if (parcial.length === 1) return parcial[0].id;
-    return null;
-  }
-
-  function bindPartBalance(form, state) {
-    const busca = form.querySelector('[name="pecaBusca"]');
-    const hidden = form.querySelector('[name="pecaId"]');
-    const hint = form.querySelector('[data-balance]');
-    const quantity = form.querySelector('[name="quantidade"]');
-    const update = () => {
-      const termo = Utils.searchKey(busca.value);
-      if (!termo) {
-        hidden.value = '';
-        hint.textContent = 'Digite o código ou descrição da peça para ver o saldo disponível.';
-        return;
-      }
-      const id = resolvePartId(state, busca.value);
-      hidden.value = id || '';
-      const part = id ? Warehouse.findPart(state, id) : null;
-      if (!part) {
-        // Check if there are multiple matches
-        const matches = state.pecas.filter(p => Utils.searchKey(p.codigo).includes(termo) || Utils.searchKey(p.descricao).includes(termo));
-        if (matches.length > 1) {
-          hint.textContent = `${matches.length} peças encontradas. Selecione uma na lista de sugestões.`;
-        } else {
-          hint.textContent = 'Peça não encontrada. Verifique o código ou a descrição.';
-        }
-        return;
-      }
-      hint.textContent = `Saldo disponível: ${Warehouse.balance(state, part.id)} un. (${part.codigo} — ${part.descricao})`;
-      if (quantity) quantity.max = Warehouse.balance(state, part.id);
-    };
-    busca.addEventListener('input', update);
-    busca.addEventListener('change', update);
-    update();
+  function bindPartQuantity(form, state) {
+    const peca = form.querySelector('[name="pecaId"]');
+    const quantidade = form.querySelector('[name="quantidade"]');
+    if (!peca || !quantidade) return;
+    peca.addEventListener('change', () => {
+      if (peca.value) quantidade.max = Warehouse.balance(state, peca.value);
+    });
   }
 
   /* opts.maintenance: quando informado, veículo e manutenção ficam fixos (uso pelo módulo Manutenção). */
@@ -128,23 +62,14 @@ const WarehouseScreens = (function () {
          <input type="hidden" name="manutencaoId" value="${esc(fixed.id)}">
          <div class="field"><span>Veículo</span><strong>${esc((Vehicles.find(state, fixed.veiculoId) || {}).placa || fixed.veiculoId)}</strong></div>
          <div class="field"><span>Manutenção</span><strong>${esc(fixed.id)}</strong></div>`
-      : `<label class="field">Veículo de destino (digite a placa)
-           <input name="veiculoBusca" type="text" required placeholder="Ex.: DEM1A01" list="vehicle-list" autocomplete="off">
-           <datalist id="vehicle-list">${state.veiculos.filter(v => v.situacao === 'Ativo').map(v => `<option value="${esc(v.placa)}">${esc(v.marca)}</option>`).join('')}</datalist>
-           <input type="hidden" name="veiculoId">
-         </label>
+      : `<label class="field">Veículo de destino (digite a placa)${UI.searchField('vehicle', state, { id: 'withdrawal-veiculo', name: 'veiculoId', placeholder: 'Ex.: DEM1A01', required: true, apenasAtivos: true })}</label>
          <label class="field">Manutenção vinculada (opcional)
            <select name="manutencaoId"><option value="">Retirada direta, sem manutenção</option>${openMaintenanceOptions(state)}</select>
          </label>`;
     return `
       <form class="card form-grid" data-form="withdrawal" novalidate>
         <div class="form-errors full"></div>
-        <label class="field full">Peça retirada (digite código ou descrição)
-          <input name="pecaBusca" type="text" required placeholder="Ex.: FLT-1001 ou filtro" list="part-list" autocomplete="off">
-          <datalist id="part-list">${state.pecas.map(p => `<option value="${esc(p.codigo)}">${esc(p.descricao)} (saldo ${Warehouse.balance(state, p.id)})</option>`).join('')}</datalist>
-          <input type="hidden" name="pecaId">
-        </label>
-        <p class="hint full" data-balance></p>
+        <label class="field full">Peça retirada (digite código ou descrição)${UI.searchField('part', state, { id: 'withdrawal-peca', name: 'pecaId', placeholder: 'Ex.: FLT-1001 ou filtro', required: true })}</label>
         ${vehicleField}
         <label class="field">Quantidade<input name="quantidade" type="number" min="1" step="1" inputmode="numeric" required></label>
         <label class="field">Data da retirada<input name="data" type="date" required value="${Utils.todayIso()}"></label>
@@ -158,25 +83,16 @@ const WarehouseScreens = (function () {
 
   /* Liga o formulário de retirada. onDone recebe a movimentação registrada. */
   function bindWithdrawalForm(form, state, ctx, opts = {}, onDone) {
-    if (!opts.maintenance) bindVehicleMaintenanceFilter(form, state);
-    bindPartBalance(form, state);
+    const syncSearch = UI.bindSearchFields(form, state);
+    if (!opts.maintenance) bindVehicleMaintenanceFilter(form);
+    bindPartQuantity(form, state);
     form.addEventListener('submit', event => {
       event.preventDefault();
       if (form.dataset.sending === 'true') return;
       form.dataset.sending = 'true';
       const button = form.querySelector('button[type="submit"]');
       button.disabled = true;
-      // Resolve typed search values to IDs
-      const pecaBusca = form.querySelector('[name="pecaBusca"]');
-      const pecaHidden = form.querySelector('[name="pecaId"]');
-      const veiculoBusca = form.querySelector('[name="veiculoBusca"]');
-      const veiculoHidden = form.querySelector('[name="veiculoId"]');
-      if (pecaBusca && pecaHidden && !pecaHidden.value) {
-        pecaHidden.value = resolvePartId(state, pecaBusca.value) || '';
-      }
-      if (veiculoBusca && veiculoHidden && !veiculoHidden.value) {
-        veiculoHidden.value = resolveVehicleId(state, veiculoBusca.value) || '';
-      }
+      syncSearch();
       const data = readForm(form);
       const result = opts.maintenance
         ? Maintenance.registerWithdrawal(ctx.state, opts.maintenance.id, data)
@@ -201,7 +117,7 @@ const WarehouseScreens = (function () {
       ? `<input type="hidden" name="veiculoId" value="${esc(fixed.veiculoId)}">
          <input type="hidden" name="manutencaoId" value="${esc(fixed.id)}">
          <div class="field"><span>Veículo</span><strong>${esc((Vehicles.find(state, fixed.veiculoId) || {}).placa || fixed.veiculoId)}</strong></div>`
-      : `<label class="field">Veículo<select name="veiculoId" required><option value="">Selecione…</option>${vehicleOptions(state)}</select></label>
+      : `<label class="field">Veículo (placa)${UI.searchField('vehicle', state, { id: 'external-veiculo', name: 'veiculoId', required: true, apenasAtivos: true })}</label>
          <label class="field">Manutenção vinculada (opcional)<select name="manutencaoId"><option value="">Sem manutenção vinculada</option>${openMaintenanceOptions(state)}</select></label>`;
     return `
       <form class="card form-grid" data-form="external" novalidate>
@@ -218,13 +134,15 @@ const WarehouseScreens = (function () {
   }
 
   function bindExternalForm(form, ctx, opts = {}, onDone) {
-    if (!opts.maintenance) bindVehicleMaintenanceFilter(form, ctx.state);
+    const syncSearch = UI.bindSearchFields(form, ctx.state);
+    if (!opts.maintenance) bindVehicleMaintenanceFilter(form);
     form.addEventListener('submit', event => {
       event.preventDefault();
       if (form.dataset.sending === 'true') return;
       form.dataset.sending = 'true';
       const button = form.querySelector('button[type="submit"]');
       button.disabled = true;
+      syncSearch();
       const data = readForm(form);
       const result = opts.maintenance
         ? Maintenance.registerExternalPart(ctx.state, opts.maintenance.id, data)
@@ -374,8 +292,7 @@ const WarehouseScreens = (function () {
       ${pageHeader('Registrar entrada de peça', 'Cada entrada aumenta o saldo e fica registrada no histórico da peça.')}
       <form class="card form-grid" id="entry-form" novalidate>
         <div class="form-errors full" id="form-errors"></div>
-        <label class="field full">Peça<select name="pecaId" required><option value="">Selecione…</option>${partOptions(ctx.state)}</select></label>
-        <p class="hint full" data-balance></p>
+        <label class="field full">Peça (digite código ou descrição)${UI.searchField('part', ctx.state, { id: 'entry-peca', name: 'pecaId', placeholder: 'Ex.: FLT-1001 ou filtro', required: true })}</label>
         <label class="field">Quantidade recebida<input name="quantidade" type="number" min="1" step="1" inputmode="numeric" required></label>
         <label class="field">Data de entrada<input name="data" type="date" required value="${Utils.todayIso()}"></label>
         <label class="field">Valor unitário desta entrada (R$)<input name="valorUnitario" inputmode="decimal" required placeholder="0,00"></label>
@@ -393,10 +310,11 @@ const WarehouseScreens = (function () {
       const part = Warehouse.findPart(ctx.state, select.value);
       if (part && !price.value) price.value = moneyInput(part.valorUnitario);
     });
-    bindPartBalance(form, ctx.state);
+    const syncSearch = UI.bindSearchFields(form, ctx.state);
 
     form.addEventListener('submit', event => {
       event.preventDefault();
+      syncSearch();
       const result = Warehouse.addEntry(ctx.state, readForm(event.currentTarget));
       if (!result.ok) {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);
@@ -460,10 +378,8 @@ const WarehouseScreens = (function () {
         <div class="filter-bar">
           <label class="field">De<input type="date" id="w-from" value="${monthStart}"></label>
           <label class="field">Até<input type="date" id="w-to" value="${today}"></label>
-          <label class="field">Veículo (placa)<input type="text" id="w-veiculo" placeholder="Todos" list="w-vehicle-list" autocomplete="off">
-          <datalist id="w-vehicle-list">${ctx.state.veiculos.map(v => `<option value="${esc(v.placa)}">${esc(v.marca)}${v.situacao === 'Inativo' ? ' (inativo)' : ''}</option>`).join('')}</datalist></label>
-          <label class="field">Peça (código/descrição)<input type="text" id="w-peca" placeholder="Todas" list="w-part-list" autocomplete="off">
-          <datalist id="w-part-list">${ctx.state.pecas.map(p => `<option value="${esc(p.codigo)}">${esc(p.descricao)}</option>`).join('')}</datalist></label>
+          <label class="field">Veículo (placa)${UI.searchInput('vehicle', ctx.state, { id: 'w-veiculo', placeholder: 'Todos' })}</label>
+          <label class="field">Peça (código/descrição)${UI.searchInput('part', ctx.state, { id: 'w-peca', placeholder: 'Todas' })}</label>
         </div>
         <div id="withdrawal-list"></div>
       </section>`;
@@ -472,25 +388,11 @@ const WarehouseScreens = (function () {
     bindWithdrawalForm(main.querySelector('[data-form="withdrawal"]'), ctx.state, ctx, {}, () => ctx.refresh());
 
     const renderList = () => {
-      const wVeiculoBusca = main.querySelector('#w-veiculo').value;
-      const wVeiculoId = (function() {
-        const t = Utils.normalizePlate(wVeiculoBusca);
-        if (!t || t === 'TODAS' || t === 'TODOS') return 'Todos';
-        const v = ctx.state.veiculos.find(vv => Utils.normalizePlate(vv.placa) === t);
-        return v ? v.id : wVeiculoBusca;
-      })();
-      const wPecaBusca = main.querySelector('#w-peca').value;
-      const wPecaId = (function() {
-        const t = Utils.searchKey(wPecaBusca);
-        if (!t || t === 'TODAS' || t === 'TODOS') return 'Todas';
-        const p = ctx.state.pecas.find(pp => Utils.searchKey(pp.codigo) === t);
-        return p ? p.id : wPecaBusca;
-      })();
       const report = Reports.withdrawalsReport(ctx.state, {
         from: main.querySelector('#w-from').value,
         to: main.querySelector('#w-to').value,
-        veiculoId: wVeiculoId,
-        pecaId: wPecaId,
+        veiculoId: Search.vehicleFilter(ctx.state, main.querySelector('#w-veiculo').value),
+        pecaId: Search.partFilter(ctx.state, main.querySelector('#w-peca').value),
       });
       const rows = report.rows.map(r => {
         const vehicle = Vehicles.find(ctx.state, r.veiculoId);
@@ -562,8 +464,7 @@ const WarehouseScreens = (function () {
         <div class="filter-bar">
           <label class="field">De<input type="date" id="u-from" value="${monthStart}"></label>
           <label class="field">Até<input type="date" id="u-to" value="${today}"></label>
-          <label class="field">Veículo (placa)<input type="text" id="u-veiculo" placeholder="Todos" list="u-vehicle-list" autocomplete="off">
-          <datalist id="u-vehicle-list">${ctx.state.veiculos.map(v => `<option value="${esc(v.placa)}">${esc(v.marca)}${v.situacao === 'Inativo' ? ' (inativo)' : ''}</option>`).join('')}</datalist></label>
+          <label class="field">Veículo (placa)${UI.searchInput('vehicle', ctx.state, { id: 'u-veiculo', placeholder: 'Todos' })}</label>
           <label class="field">Tipo<select id="u-tipo"><option value="Todos">Todos</option><option value="Interno">Interno (almoxarifado)</option><option value="Externo">Externo</option></select></label>
         </div>
         <div id="used-parts-list"></div>
@@ -572,13 +473,7 @@ const WarehouseScreens = (function () {
     const renderList = () => {
       const from = main.querySelector('#u-from').value;
       const to = main.querySelector('#u-to').value;
-      const uVeiculoBusca = main.querySelector('#u-veiculo').value;
-      const veiculoId = (function() {
-        const t = Utils.normalizePlate(uVeiculoBusca);
-        if (!t || t === 'TODAS' || t === 'TODOS') return 'Todos';
-        const v = ctx.state.veiculos.find(vv => Utils.normalizePlate(vv.placa) === t);
-        return v ? v.id : uVeiculoBusca;
-      })();
+      const veiculoId = Search.vehicleFilter(ctx.state, main.querySelector('#u-veiculo').value);
       const tipo = main.querySelector('#u-tipo').value;
 
       const retiradas = Warehouse.withdrawals(ctx.state, { from, to, veiculoId }).map(r => ({

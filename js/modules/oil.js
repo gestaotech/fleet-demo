@@ -23,19 +23,6 @@ const OilScreens = (function () {
     return UI.badge(situacao, TONE[situacao] || 'muted');
   }
 
-  function vehicleOptions(state, selectedId) {
-    return state.veiculos
-      .filter(v => v.situacao === 'Ativo')
-      .map(v => option(v.id, `${v.placa} – ${v.marca}`, v.id === selectedId))
-      .join('');
-  }
-
-  function partOptions(state, selectedId) {
-    return state.pecas
-      .map(p => option(p.id, `${p.codigo} – ${p.descricao} (saldo ${Warehouse.balance(state, p.id)})`, p.id === selectedId))
-      .join('');
-  }
-
   function maintenanceOptions(state, selectedId) {
     return state.manutencoes
       .filter(m => Maintenance.isOpen(m) || m.id === selectedId)
@@ -53,8 +40,7 @@ const OilScreens = (function () {
       <section class="kpi-grid" id="oil-kpis"></section>
       <section class="card">
         <div class="filter-bar">
-          <label class="field">Veículo (placa)<input type="text" id="oil-veiculo" placeholder="Todos" list="oil-vehicle-list" autocomplete="off">
-          <datalist id="oil-vehicle-list">${ctx.state.veiculos.map(v => `<option value="${esc(v.placa)}">${esc(v.marca)}${v.situacao === 'Inativo' ? ' (inativo)' : ''}</option>`).join('')}</datalist></label>
+          <label class="field">Veículo (placa)${UI.searchInput('vehicle', ctx.state, { id: 'oil-veiculo', placeholder: 'Todos' })}</label>
           <label class="field">Situação<select id="oil-situacao"><option value="Todas">Todas</option>${Oil.SITUACOES.map(s => option(s, s)).join('')}</select></label>
         </div>
         <div id="oil-list"></div>
@@ -65,13 +51,7 @@ const OilScreens = (function () {
       </section>`;
 
     const render = () => {
-      const oilVeiculoBusca = main.querySelector('#oil-veiculo').value;
-    const veiculoId = (function() {
-      const t = Utils.normalizePlate(oilVeiculoBusca);
-      if (!t || t === 'TODAS' || t === 'TODOS') return 'Todos';
-      const v = ctx.state.veiculos.find(vv => Utils.normalizePlate(vv.placa) === t);
-      return v ? v.id : oilVeiculoBusca;
-    })();
+      const veiculoId = Search.vehicleFilter(ctx.state, main.querySelector('#oil-veiculo').value);
       const situacao = main.querySelector('#oil-situacao').value;
       const resumo = Oil.summary(ctx.state);
       main.querySelector('#oil-kpis').innerHTML = [
@@ -155,8 +135,7 @@ const OilScreens = (function () {
         `Alerta configurado: ${conf.alertaTrocaOleoKm} km ou ${conf.alertaTrocaOleoDias} dias de antecedência (Administrador → Parâmetros).`)}
       <form class="card form-grid" id="oil-form" novalidate>
         <div class="form-errors full" id="form-errors"></div>
-        <label class="field">Veículo
-          <select name="veiculoId" required><option value="">Selecione…</option>${vehicleOptions(ctx.state, current.veiculoId)}</select>
+        <label class="field">Veículo (placa)${UI.searchField('vehicle', ctx.state, { id: 'oil-veiculo-busca', name: 'veiculoId', required: true, apenasAtivos: true, selectedId: current.veiculoId })}
           <span class="hint" data-km-hint></span>
         </label>
         <label class="field">Data da troca<input name="data" type="date" required value="${esc(current.data)}"></label>
@@ -169,8 +148,7 @@ const OilScreens = (function () {
         <label class="field">Manutenção vinculada (opcional)
           <select name="manutencaoId"><option value="">Sem vínculo</option>${maintenanceOptions(ctx.state, current.manutencaoId)}</select>
         </label>
-        <label class="field">Óleo do almoxarifado (opcional)
-          <select name="pecaId"><option value="">Não usar estoque</option>${partOptions(ctx.state, current.pecaId)}</select>
+        <label class="field">Óleo do almoxarifado (opcional)${UI.searchField('part', ctx.state, { id: 'oil-peca-busca', name: 'pecaId', placeholder: 'Código ou descrição; vazio = não usar estoque', selectedId: current.pecaId })}
           <span class="hint" data-part-hint></span>
         </label>
         <label class="field">Responsável pela troca<input name="responsavel" required value="${esc(current.responsavel)}"></label>
@@ -214,6 +192,7 @@ const OilScreens = (function () {
       valorUnitario.readOnly = true;
     };
 
+    const syncSearch = UI.bindSearchFields(formEl, ctx.state);
     veiculo.addEventListener('change', () => { updateKmHint(); updateMaintenanceFilter(); });
     peca.addEventListener('change', updatePartHint);
     updateKmHint();
@@ -222,6 +201,7 @@ const OilScreens = (function () {
 
     formEl.addEventListener('submit', event => {
       event.preventDefault();
+      syncSearch();
       const data = readForm(formEl);
       const result = editing ? Oil.update(ctx.state, editing.id, data) : Oil.create(ctx.state, data);
       if (!result.ok) {
