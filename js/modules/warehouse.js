@@ -217,7 +217,7 @@ const WarehouseScreens = (function () {
         [
           { label: 'Código' }, { label: 'Descrição' }, { label: 'Valor unitário', align: 'right' },
           { label: 'Saldo', align: 'right' }, { label: 'Mínimo', align: 'right' }, { label: 'Data de entrada' },
-          { label: 'Situação' }, { label: 'Uso' }, { label: '' },
+          { label: 'Situação' }, { label: 'Uso' }, { label: 'Observação' }, { label: '' },
         ],
         filtered.map(r => [
           esc(r.codigo),
@@ -228,6 +228,7 @@ const WarehouseScreens = (function () {
           Utils.formatDate(r.dataEntrada),
           stockBadge(r),
           r.situacaoUso === 'Nova' ? UI.badge('Nova', 'ok') : (r.situacaoUso === 'Usada' ? UI.badge('Usada', 'muted') : UI.badge('Nova e usada', 'info')),
+          esc(r.observacao || '—'),
           `<div class="row-actions"><a class="link" href="#/almoxarifado/estoque/${esc(r.id)}">Movimentações</a><a class="link" href="#/almoxarifado/estoque/${esc(r.id)}/editar">Editar</a></div>`,
         ]),
         filtrando ? 'Nenhuma peça corresponde à pesquisa ou aos filtros informados.' : 'Nenhuma peça cadastrada.',
