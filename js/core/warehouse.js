@@ -152,8 +152,8 @@ const Warehouse = (function () {
     const responsavel = Utils.normalizeText(data.responsavel);
     const manutencao = data.manutencaoId ? Maintenance.find(state, data.manutencaoId) : null;
 
-    if (!part) errors.push('Selecione a peça retirada.');
-    if (!veiculo) errors.push('Selecione o veículo de destino.');
+    if (!part) errors.push('Informe o código ou a descrição da peça retirada.');
+    if (!veiculo) errors.push('Informe a placa do veículo de destino.');
     else if (!Vehicles.isActive(veiculo)) errors.push('Veículo inativo não pode receber peças do almoxarifado.');
     if (data.manutencaoId && !manutencao) errors.push('A manutenção informada não foi encontrada.');
     else if (manutencao && !Maintenance.isOpen(manutencao)) errors.push('A manutenção informada não está aberta.');
