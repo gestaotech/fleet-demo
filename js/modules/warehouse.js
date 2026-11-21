@@ -217,7 +217,7 @@ const WarehouseScreens = (function () {
         [
           { label: 'Código' }, { label: 'Descrição' }, { label: 'Valor unitário', align: 'right' },
           { label: 'Saldo', align: 'right' }, { label: 'Mínimo', align: 'right' }, { label: 'Data de entrada' },
-          { label: 'Situação' }, { label: 'Uso' }, { label: '' },
+          { label: 'Situação' }, { label: 'Uso' }, { label: 'Observação' }, { label: '' },
         ],
         filtered.map(r => [
           esc(r.codigo),
@@ -228,6 +228,7 @@ const WarehouseScreens = (function () {
           Utils.formatDate(r.dataEntrada),
           stockBadge(r),
           r.situacaoUso === 'Nova' ? UI.badge('Nova', 'ok') : (r.situacaoUso === 'Usada' ? UI.badge('Usada', 'muted') : UI.badge('Nova e usada', 'info')),
+          esc(r.observacao || '—'),
           `<div class="row-actions"><a class="link" href="#/almoxarifado/estoque/${esc(r.id)}">Movimentações</a><a class="link" href="#/almoxarifado/estoque/${esc(r.id)}/editar">Editar</a></div>`,
         ]),
         filtrando ? 'Nenhuma peça corresponde à pesquisa ou aos filtros informados.' : 'Nenhuma peça cadastrada.',
@@ -265,7 +266,9 @@ const WarehouseScreens = (function () {
         <label class="field">Estoque mínimo (alerta)<input name="estoqueMinimo" type="number" min="0" step="1" inputmode="numeric" required value="${esc(current.estoqueMinimo)}"></label>
         <label class="field">Data de entrada no cadastro<input name="dataEntrada" type="date" required value="${esc(current.dataEntrada)}"></label>
         ${editing ? '' : `<label class="field">Quantidade inicial em estoque<input name="quantidadeInicial" type="number" min="0" step="1" inputmode="numeric" value="0"></label>`}
+        <label class="field full">Observação<textarea name="observacao" rows="2" placeholder="Opcional: fornecedor, aplicação, condições do cadastro">${esc(current.observacao || '')}</textarea></label>
         <div class="form-actions full">
+          ${editing ? '<button class="btn btn-danger" type="button" id="part-delete">Excluir peça</button>' : ''}
           <a class="btn btn-ghost" href="#/almoxarifado/estoque">Cancelar</a>
           <button class="btn btn-primary" type="submit">${editing ? 'Salvar alterações' : 'Cadastrar peça'}</button>
         </div>
@@ -285,6 +288,22 @@ const WarehouseScreens = (function () {
         ctx.go('#/almoxarifado/estoque');
       });
     });
+
+    if (editing) {
+      main.querySelector('#part-delete').addEventListener('click', () => {
+        if (!UI.confirmAction(`Excluir a peça ${editing.codigo} – ${editing.descricao}? Esta ação não pode ser desfeita.`)) return;
+        const result = Warehouse.deletePart(ctx.state, editing.id);
+        if (!result.ok) {
+          UI.showErrors(main.querySelector('#form-errors'), result.errors);
+          return;
+        }
+        ctx.save().then(ok => {
+          if (!ok) return;
+          ctx.toast('Peça excluída.');
+          ctx.go('#/almoxarifado/estoque');
+        });
+      });
+    }
   }
 
   function entryForm(main, params, ctx) {
