@@ -33,7 +33,8 @@ const ReportScreens = (function () {
   }
 
   function vehicleSelect(state) {
-    return `<label class="field">Veículo<select name="veiculoId"><option value="Todos">Todos</option>${state.veiculos.map(v => option(v.id, v.placa)).join('')}</select></label>`;
+    return `<label class="field">Veículo (placa)<input type="text" name="veiculoId" placeholder="Todos" list="report-vehicle-list" autocomplete="off">
+      <datalist id="report-vehicle-list">${state.veiculos.map(v => `<option value="${esc(v.placa)}">${esc(v.marca)}${v.situacao === 'Inativo' ? ' (inativo)' : ''}</option>`).join('')}</datalist></label>`;
   }
 
   function readFilters(container) {
@@ -60,7 +61,32 @@ const ReportScreens = (function () {
     let current = null;
 
     const run = () => {
-      current = build(readFilters(filters));
+      const raw = readFilters(filters);
+      // Resolve typed vehicle plate to vehicle ID (or 'Todos' for all)
+      if (raw.veiculoId) {
+        const t = Utils.normalizePlate(raw.veiculoId);
+        if (!t || t === 'TODAS' || t === 'TODOS') {
+          raw.veiculoId = 'Todos';
+        } else {
+          const v = ctx.state.veiculos.find(vv => Utils.normalizePlate(vv.placa) === t);
+          if (v) raw.veiculoId = v.id;
+        }
+      }
+      // Resolve typed part code/description to part ID (or 'Todas' for all)
+      if (raw.pecaId) {
+        const t = Utils.searchKey(raw.pecaId);
+        if (!t || t === 'TODAS' || t === 'TODOS') {
+          raw.pecaId = 'Todas';
+        } else {
+          const exact = ctx.state.pecas.find(pp => Utils.searchKey(pp.codigo) === t);
+          if (exact) raw.pecaId = exact.id;
+          else {
+            const matches = ctx.state.pecas.filter(pp => Utils.searchKey(pp.codigo).includes(t) || Utils.searchKey(pp.descricao).includes(t));
+            if (matches.length === 1) raw.pecaId = matches[0].id;
+          }
+        }
+      }
+      current = build(raw);
       results.innerHTML = `
         <div class="report-actions">
           <button type="button" class="btn btn-ghost" data-export>Exportar CSV</button>
@@ -176,7 +202,8 @@ const ReportScreens = (function () {
     reportPage(main, ctx, 'retiradas', 'Relatório de retiradas',
       'Saídas do almoxarifado. O valor usa o valor unitário vigente na data da retirada.',
       `${periodFields()}${vehicleSelect(ctx.state)}
-       <label class="field">Peça<select name="pecaId"><option value="Todas">Todas</option>${ctx.state.pecas.map(p => option(p.id, p.descricao)).join('')}</select></label>`,
+       <label class="field">Peça (código/descrição)<input type="text" name="pecaId" placeholder="Todas" list="report-part-list" autocomplete="off">
+       <datalist id="report-part-list">${ctx.state.pecas.map(p => `<option value="${esc(p.codigo)}">${esc(p.descricao)}</option>`).join('')}</datalist></label>`,
       (f) => {
         const r = Reports.withdrawalsReport(ctx.state, f);
         return {
