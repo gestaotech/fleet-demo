@@ -103,6 +103,40 @@ const VehicleScreens = (function () {
     render();
   }
 
+  const CRLV_LIMITE_BYTES = 3 * 1024 * 1024;
+
+  function tamanhoEmMb(bytes) {
+    return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
+  }
+
+  function dataHoraLocal(iso) {
+    return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  }
+
+  function crlvResumo(documento) {
+    return documento
+      ? `${documento.nomeArquivo} · ${tamanhoEmMb(documento.tamanhoBytes)} · enviado em ${dataHoraLocal(documento.enviadoEm)}`
+      : 'Nenhum CRLV anexado.';
+  }
+
+  function carregarCrlv(veiculoId) {
+    return Api.get(`/veiculos/crlv/${encodeURIComponent(veiculoId)}`);
+  }
+
+  function lerComoBase64(arquivo) {
+    return new Promise((resolve, reject) => {
+      const leitor = new FileReader();
+      leitor.onload = () => resolve(String(leitor.result).split(',')[1] || '');
+      leitor.onerror = () => reject(leitor.error);
+      leitor.readAsDataURL(arquivo);
+    });
+  }
+
+  async function enviarCrlv(veiculoId, arquivo) {
+    const conteudoBase64 = await lerComoBase64(arquivo);
+    return Api.put(`/veiculos/crlv/${encodeURIComponent(veiculoId)}`, { nomeArquivo: arquivo.name, conteudoBase64 });
+  }
+
   function form(main, params, ctx) {
     const editing = params.id ? Vehicles.find(ctx.state, params.id) : null;
     if (params.id && !editing) {
@@ -121,24 +155,54 @@ const VehicleScreens = (function () {
         <label class="field">Situação cadastral
           <select name="situacao">${Vehicles.SITUACOES.map(s => option(s, s, s === current.situacao)).join('')}</select>
         </label>
+        <label class="field">Quilometragem atual (km, opcional)
+          <input name="quilometragemCadastro" type="number" min="0" step="1" inputmode="numeric" value="${esc(current.quilometragemCadastro ?? '')}" placeholder="Ex.: 125000">
+          <span class="hint">Usada enquanto não houver abastecimento, troca de óleo ou manutenção com quilometragem.</span>
+        </label>
+        <label class="field">CRLV (PDF, até 3 MB)
+          <input id="vehicle-crlv" type="file" accept="application/pdf,.pdf">
+          <span class="hint" data-crlv-status>${editing ? 'Carregando…' : 'Opcional. Se anexado, fica disponível nos detalhes do veículo.'}</span>
+        </label>
         <div class="form-actions full">
           <a class="btn btn-ghost" href="${editing ? `#/veiculos/${esc(editing.id)}` : '#/veiculos'}">Cancelar</a>
           <button class="btn btn-primary" type="submit">${editing ? 'Salvar alterações' : 'Cadastrar veículo'}</button>
         </div>
       </form>`;
 
-    main.querySelector('#vehicle-form').addEventListener('submit', event => {
+    const formEl = main.querySelector('#vehicle-form');
+    if (editing) {
+      const status = formEl.querySelector('[data-crlv-status]');
+      carregarCrlv(editing.id).then(res => {
+        status.textContent = res.ok ? `Atual: ${crlvResumo(res.data.documento)} Enviar outro arquivo substitui o atual.` : 'Não foi possível consultar o CRLV.';
+      });
+    }
+
+    formEl.addEventListener('submit', event => {
       event.preventDefault();
-      const data = readForm(event.currentTarget);
+      const arquivo = formEl.querySelector('#vehicle-crlv').files[0] || null;
+      if (arquivo && !(/\.pdf$/i.test(arquivo.name) && arquivo.size <= CRLV_LIMITE_BYTES)) {
+        UI.showErrors(main.querySelector('#form-errors'), ['Anexe um arquivo PDF (.pdf) de no máximo 3 MB.']);
+        return;
+      }
+      const data = readForm(formEl);
       const result = editing ? Vehicles.update(ctx.state, editing.id, data) : Vehicles.create(ctx.state, data);
       if (!result.ok) {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);
         return;
       }
-      ctx.save().then(ok => {
+      const veiculoId = result.value.id;
+      ctx.save().then(async ok => {
         if (!ok) return;
+        if (arquivo) {
+          const envio = await enviarCrlv(veiculoId, arquivo);
+          if (!envio.ok) {
+            ctx.toast(`Veículo salvo, mas o CRLV não foi enviado: ${envio.error.message}`, 'error');
+            ctx.go(`#/veiculos/${veiculoId}`);
+            return;
+          }
+        }
         ctx.toast(editing ? 'Veículo atualizado.' : 'Veículo cadastrado.');
-        ctx.go(`#/veiculos/${result.value.id}`);
+        ctx.go(`#/veiculos/${veiculoId}`);
       });
     });
   }
@@ -195,6 +259,10 @@ const VehicleScreens = (function () {
                </dl>`
             : '<p class="muted">Nenhuma troca de óleo registrada. A situação desta informação está pendente de dados.</p>'}
         </div>
+      </section>
+      <section class="card">
+        <h2>Documento do veículo (CRLV)</h2>
+        <p class="muted" id="v-crlv">Carregando…</p>
       </section>
       <section class="card">
         <div class="filter-bar">
@@ -360,6 +428,18 @@ const VehicleScreens = (function () {
       ctx.toast('Histórico completo exibido.');
     });
     renderHistorico();
+
+    const crlvSlot = main.querySelector('#v-crlv');
+    carregarCrlv(vehicle.id).then(res => {
+      if (!res.ok) {
+        crlvSlot.textContent = 'Não foi possível carregar o CRLV.';
+        return;
+      }
+      const doc = res.data.documento;
+      crlvSlot.innerHTML = doc
+        ? `${esc(crlvResumo(doc))} <a class="link" href="/api/v1/veiculos/crlv/${encodeURIComponent(vehicle.id)}?arquivo=1" target="_blank" rel="noopener">Abrir PDF</a>`
+        : `Nenhum CRLV anexado. <a class="link" href="#/veiculos/${esc(vehicle.id)}/editar">Anexar em Editar veículo</a>`;
+    });
   }
 
   return { list, form, detail };
