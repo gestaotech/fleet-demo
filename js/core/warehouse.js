@@ -71,7 +71,7 @@ const Warehouse = (function () {
     if (!Number.isFinite(estoqueMinimo)) errors.push('Informe o estoque mínimo como número inteiro (zero ou maior).');
     if (!Utils.isValidDate(dataEntrada)) errors.push('Informe uma data de entrada válida.');
 
-    return { errors, value: { codigo, descricao, valorUnitario, estoqueMinimo, dataEntrada } };
+    return { errors, value: { codigo, descricao, valorUnitario, estoqueMinimo, dataEntrada, observacao: Utils.normalizeText(data.observacao) } };
   }
 
   function createPart(state, data) {
@@ -106,6 +106,17 @@ const Warehouse = (function () {
     const checked = validatePart(state, data, id);
     if (checked.errors.length) return { ok: false, errors: checked.errors };
     Object.assign(part, checked.value);
+    return { ok: true, value: part };
+  }
+
+  /* Peça com movimentações não é excluída: o saldo e o histórico de custos dependem dela. */
+  function deletePart(state, id) {
+    const part = findPart(state, id);
+    if (!part) return { ok: false, errors: ['Peça não encontrada.'] };
+    if (state.movimentacoes.some(m => m.pecaId === id)) {
+      return { ok: false, errors: ['Esta peça tem movimentações registradas e não pode ser excluída. Mantenha o cadastro para preservar o histórico.'] };
+    }
+    state.pecas.splice(state.pecas.indexOf(part), 1);
     return { ok: true, value: part };
   }
 
@@ -272,7 +283,7 @@ const Warehouse = (function () {
 
   return {
     findPart, balance, isLowStock, inventory, filterInventory,
-    validatePart, createPart, updatePart, addEntry,
+    validatePart, createPart, updatePart, deletePart, addEntry,
     validateWithdrawal, registerWithdrawal, registerExternalPart,
     movementsOf, withdrawals, externalParts,
   };
