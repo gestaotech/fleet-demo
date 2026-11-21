@@ -34,11 +34,19 @@ const UI = (function () {
     return `<header class="page-header"><div><h1>${esc(title)}</h1>${subtitle ? `<p class="muted">${esc(subtitle)}</p>` : ''}</div>${actions ? `<div class="page-actions">${actions}</div>` : ''}</header>`;
   }
 
-  /* columns: [{ label, align: 'left'|'right' }]; rows: array de arrays de HTML já tratado. */
+  /*
+   * columns: [{ label, align: 'left'|'right' }]; rows: array de arrays de HTML já tratado,
+   * ou { cells, footer }: o footer (HTML de ações) ocupa uma linha inteira abaixo da linha.
+   */
   function table(columns, rows, emptyText = 'Nenhum registro encontrado.') {
     const head = columns.map(c => `<th class="${c.align === 'right' ? 'num' : ''}">${esc(c.label)}</th>`).join('');
     const body = rows.length
-      ? rows.map(row => `<tr>${row.map((cell, i) => `<td class="${columns[i] && columns[i].align === 'right' ? 'num' : ''}">${cell}</td>`).join('')}</tr>`).join('')
+      ? rows.map(row => {
+          const cells = Array.isArray(row) ? row : row.cells;
+          const linha = `<tr>${cells.map((cell, i) => `<td class="${columns[i] && columns[i].align === 'right' ? 'num' : ''}">${cell}</td>`).join('')}</tr>`;
+          if (Array.isArray(row) || !row.footer) return linha;
+          return `${linha}<tr class="row-footer"><td colspan="${columns.length}"><div class="row-actions">${row.footer}</div></td></tr>`;
+        }).join('')
       : `<tr><td colspan="${columns.length}" class="empty">${esc(emptyText)}</td></tr>`;
     return `<div class="table-wrap"><table class="data-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
   }

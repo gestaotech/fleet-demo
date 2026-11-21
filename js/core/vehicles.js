@@ -32,6 +32,8 @@ const Vehicles = (function () {
     abastecimentos.forEach(a => { if (a.veiculoId === veiculoId && Number.isInteger(a.quilometragem)) valores.push(a.quilometragem); });
     trocas.forEach(t => { if (t.veiculoId === veiculoId && Number.isInteger(t.quilometragem)) valores.push(t.quilometragem); });
     manutencoes.forEach(m => { if (m.veiculoId === veiculoId && Number.isInteger(m.quilometragem)) valores.push(m.quilometragem); });
+    const veiculo = find(state, veiculoId);
+    if (veiculo && Number.isInteger(veiculo.quilometragemCadastro)) valores.push(veiculo.quilometragemCadastro);
     return valores.length ? Math.max(...valores) : null;
   }
 
@@ -47,6 +49,10 @@ const Vehicles = (function () {
     (state.manutencoes || []).forEach(m => {
       if (m.veiculoId === veiculoId && Number.isInteger(m.quilometragem)) candidatos.push({ km: m.quilometragem, data: m.dataEntrada, origem: 'Manutenção' });
     });
+    const veiculo = find(state, veiculoId);
+    if (veiculo && Number.isInteger(veiculo.quilometragemCadastro)) {
+      candidatos.push({ km: veiculo.quilometragemCadastro, data: `${veiculo.dataEntrada}T00:00`, origem: 'Cadastro do veículo' });
+    }
     if (!candidatos.length) return null;
     return candidatos.reduce((maior, atual) => (atual.km > maior.km ? atual : maior));
   }
@@ -58,8 +64,13 @@ const Vehicles = (function () {
     const placa = Utils.normalizePlate(data.placa);
     const dataEntrada = data.dataEntrada;
     const situacao = data.situacao;
+    const quilometragemTexto = String(data.quilometragemCadastro ?? '').trim();
+    const quilometragemCadastro = quilometragemTexto === '' ? null : Utils.parseInteger(quilometragemTexto);
 
     if (!marca) errors.push('Informe a marca do veículo.');
+    if (quilometragemCadastro !== null && !Number.isInteger(quilometragemCadastro)) {
+      errors.push('Informe a quilometragem como número inteiro (zero ou maior), ou deixe o campo em branco.');
+    }
     if (!identificacao) errors.push('Informe o número ou identificação interna.');
     if (!PLACA_PATTERN.test(placa)) errors.push('Placa inválida. Use o padrão antigo (ABC1234) ou Mercosul (ABC1D23).');
     if (!Utils.isValidDate(dataEntrada)) errors.push('Informe uma data de entrada na frota válida.');
@@ -71,7 +82,7 @@ const Vehicles = (function () {
       errors.push('Já existe um veículo com esta placa.');
     }
 
-    return { errors, value: { marca, identificacao, placa, dataEntrada, situacao } };
+    return { errors, value: { marca, identificacao, placa, dataEntrada, situacao, quilometragemCadastro } };
   }
 
   function create(state, data) {
