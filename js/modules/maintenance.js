@@ -8,7 +8,8 @@ const MaintenanceScreens = (function () {
         '<a class="btn btn-primary" href="#/manutencao/nova">Nova manutenção</a>')}
       <section class="card">
         <div class="filter-bar">
-          <label class="field">Veículo<select id="m-veiculo"><option value="Todos">Todos</option>${ctx.state.veiculos.map(v => option(v.id, v.placa)).join('')}</select></label>
+          <label class="field">Veículo (placa)<input type="text" id="m-veiculo" placeholder="Todos" list="maint-vehicle-list" autocomplete="off">
+          <datalist id="maint-vehicle-list">${ctx.state.veiculos.map(v => `<option value="${esc(v.placa)}">${esc(v.marca)}${v.situacao === 'Inativo' ? ' (inativo)' : ''}</option>`).join('')}</datalist></label>
           <label class="field">Situação<select id="m-status"><option value="Todos">Todas</option>${Maintenance.STATUS.map(s => option(s, s)).join('')}</select></label>
           <label class="field">Entrada de<input type="date" id="m-from"></label>
           <label class="field">Entrada até<input type="date" id="m-to"></label>
@@ -17,8 +18,15 @@ const MaintenanceScreens = (function () {
       </section>`;
 
     const render = () => {
+      const mVeiculoBusca = main.querySelector('#m-veiculo').value;
+      const mVeiculoId = (function() {
+        const t = Utils.normalizePlate(mVeiculoBusca);
+        if (!t || t === 'TODAS' || t === 'TODOS') return 'Todos';
+        const v = ctx.state.veiculos.find(vv => Utils.normalizePlate(vv.placa) === t);
+        return v ? v.id : mVeiculoBusca;
+      })();
       const rows = Maintenance.list(ctx.state, {
-        veiculoId: main.querySelector('#m-veiculo').value,
+        veiculoId: mVeiculoId,
         status: main.querySelector('#m-status').value,
         from: main.querySelector('#m-from').value,
         to: main.querySelector('#m-to').value,
@@ -41,7 +49,8 @@ const MaintenanceScreens = (function () {
         'Nenhuma manutenção corresponde ao filtro.',
       );
     };
-    main.querySelectorAll('select, input[type="date"]').forEach(el => el.addEventListener('change', render));
+    main.querySelectorAll('select, input[type="date"], input[type="text"]').forEach(el => el.addEventListener('change', render));
+    main.querySelector('#m-veiculo').addEventListener('input', render);
     render();
   }
 

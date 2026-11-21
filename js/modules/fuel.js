@@ -47,7 +47,8 @@ const FuelScreens = (function () {
         <div class="filter-bar">
           <label class="field">De<input type="date" id="fuel-from" value="${monthStart}"></label>
           <label class="field">Até<input type="date" id="fuel-to" value="${today}"></label>
-          <label class="field">Veículo<select id="fuel-veiculo"><option value="Todos">Todos</option>${vehicleFilterOptions(ctx.state)}</select></label>
+          <label class="field">Veículo (placa)<input type="text" id="fuel-veiculo" placeholder="Todas" list="fuel-vehicle-list" autocomplete="off">
+          <datalist id="fuel-vehicle-list">${ctx.state.veiculos.map(v => `<option value="${esc(v.placa)}">${esc(v.marca)}${v.situacao === 'Inativo' ? ' (inativo)' : ''}</option>`).join('')}</datalist></label>
           <div class="field field-action">
             <button type="button" class="btn btn-ghost" id="fuel-clear">Limpar filtros</button>
           </div>
@@ -63,10 +64,16 @@ const FuelScreens = (function () {
         <div id="fuel-consumption"></div>
       </section>`;
 
+    function resolveFuelVehicleId(busca) {
+      const termo = Utils.normalizePlate(busca);
+      if (!termo || termo === 'TODAS' || termo === 'TODOS') return 'Todos';
+      const v = ctx.state.veiculos.find(vv => Utils.normalizePlate(vv.placa) === termo);
+      return v ? v.id : busca;
+    }
     const filters = () => ({
       from: main.querySelector('#fuel-from').value,
       to: main.querySelector('#fuel-to').value,
-      veiculoId: main.querySelector('#fuel-veiculo').value,
+      veiculoId: resolveFuelVehicleId(main.querySelector('#fuel-veiculo').value),
     });
 
     const render = () => {
@@ -121,11 +128,12 @@ const FuelScreens = (function () {
 
     main.querySelector('#fuel-from').addEventListener('change', render);
     main.querySelector('#fuel-to').addEventListener('change', render);
+    main.querySelector('#fuel-veiculo').addEventListener('input', render);
     main.querySelector('#fuel-veiculo').addEventListener('change', render);
     main.querySelector('#fuel-clear').addEventListener('click', () => {
       main.querySelector('#fuel-from').value = monthStart;
       main.querySelector('#fuel-to').value = today;
-      main.querySelector('#fuel-veiculo').value = 'Todos';
+      main.querySelector('#fuel-veiculo').value = '';
       render();
     });
     render();

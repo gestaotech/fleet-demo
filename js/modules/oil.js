@@ -53,7 +53,8 @@ const OilScreens = (function () {
       <section class="kpi-grid" id="oil-kpis"></section>
       <section class="card">
         <div class="filter-bar">
-          <label class="field">Veículo<select id="oil-veiculo"><option value="Todos">Todos</option>${ctx.state.veiculos.map(v => option(v.id, v.placa)).join('')}</select></label>
+          <label class="field">Veículo (placa)<input type="text" id="oil-veiculo" placeholder="Todos" list="oil-vehicle-list" autocomplete="off">
+          <datalist id="oil-vehicle-list">${ctx.state.veiculos.map(v => `<option value="${esc(v.placa)}">${esc(v.marca)}${v.situacao === 'Inativo' ? ' (inativo)' : ''}</option>`).join('')}</datalist></label>
           <label class="field">Situação<select id="oil-situacao"><option value="Todas">Todas</option>${Oil.SITUACOES.map(s => option(s, s)).join('')}</select></label>
         </div>
         <div id="oil-list"></div>
@@ -64,7 +65,13 @@ const OilScreens = (function () {
       </section>`;
 
     const render = () => {
-      const veiculoId = main.querySelector('#oil-veiculo').value;
+      const oilVeiculoBusca = main.querySelector('#oil-veiculo').value;
+    const veiculoId = (function() {
+      const t = Utils.normalizePlate(oilVeiculoBusca);
+      if (!t || t === 'TODAS' || t === 'TODOS') return 'Todos';
+      const v = ctx.state.veiculos.find(vv => Utils.normalizePlate(vv.placa) === t);
+      return v ? v.id : oilVeiculoBusca;
+    })();
       const situacao = main.querySelector('#oil-situacao').value;
       const resumo = Oil.summary(ctx.state);
       main.querySelector('#oil-kpis').innerHTML = [
@@ -114,6 +121,7 @@ const OilScreens = (function () {
       );
     };
 
+    main.querySelector('#oil-veiculo').addEventListener('input', render);
     main.querySelector('#oil-veiculo').addEventListener('change', render);
     main.querySelector('#oil-situacao').addEventListener('change', render);
     render();

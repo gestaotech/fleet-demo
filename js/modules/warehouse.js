@@ -460,8 +460,10 @@ const WarehouseScreens = (function () {
         <div class="filter-bar">
           <label class="field">De<input type="date" id="w-from" value="${monthStart}"></label>
           <label class="field">Até<input type="date" id="w-to" value="${today}"></label>
-          <label class="field">Veículo<select id="w-veiculo"><option value="Todos">Todos</option>${ctx.state.veiculos.map(v => option(v.id, v.placa)).join('')}</select></label>
-          <label class="field">Peça<select id="w-peca"><option value="Todas">Todas</option>${ctx.state.pecas.map(p => option(p.id, p.descricao)).join('')}</select></label>
+          <label class="field">Veículo (placa)<input type="text" id="w-veiculo" placeholder="Todos" list="w-vehicle-list" autocomplete="off">
+          <datalist id="w-vehicle-list">${ctx.state.veiculos.map(v => `<option value="${esc(v.placa)}">${esc(v.marca)}${v.situacao === 'Inativo' ? ' (inativo)' : ''}</option>`).join('')}</datalist></label>
+          <label class="field">Peça (código/descrição)<input type="text" id="w-peca" placeholder="Todas" list="w-part-list" autocomplete="off">
+          <datalist id="w-part-list">${ctx.state.pecas.map(p => `<option value="${esc(p.codigo)}">${esc(p.descricao)}</option>`).join('')}</datalist></label>
         </div>
         <div id="withdrawal-list"></div>
       </section>`;
@@ -470,11 +472,25 @@ const WarehouseScreens = (function () {
     bindWithdrawalForm(main.querySelector('[data-form="withdrawal"]'), ctx.state, ctx, {}, () => ctx.refresh());
 
     const renderList = () => {
+      const wVeiculoBusca = main.querySelector('#w-veiculo').value;
+      const wVeiculoId = (function() {
+        const t = Utils.normalizePlate(wVeiculoBusca);
+        if (!t || t === 'TODAS' || t === 'TODOS') return 'Todos';
+        const v = ctx.state.veiculos.find(vv => Utils.normalizePlate(vv.placa) === t);
+        return v ? v.id : wVeiculoBusca;
+      })();
+      const wPecaBusca = main.querySelector('#w-peca').value;
+      const wPecaId = (function() {
+        const t = Utils.searchKey(wPecaBusca);
+        if (!t || t === 'TODAS' || t === 'TODOS') return 'Todas';
+        const p = ctx.state.pecas.find(pp => Utils.searchKey(pp.codigo) === t);
+        return p ? p.id : wPecaBusca;
+      })();
       const report = Reports.withdrawalsReport(ctx.state, {
         from: main.querySelector('#w-from').value,
         to: main.querySelector('#w-to').value,
-        veiculoId: main.querySelector('#w-veiculo').value,
-        pecaId: main.querySelector('#w-peca').value,
+        veiculoId: wVeiculoId,
+        pecaId: wPecaId,
       });
       const rows = report.rows.map(r => {
         const vehicle = Vehicles.find(ctx.state, r.veiculoId);
@@ -495,7 +511,8 @@ const WarehouseScreens = (function () {
         'Nenhuma retirada no período selecionado.',
       ) + `<p class="totals">Total de unidades: <strong>${report.totals.quantidade}</strong> · Valor total: <strong>${money(report.totals.valor)}</strong></p>`;
     };
-    ['#w-from', '#w-to', '#w-veiculo', '#w-peca'].forEach(sel => main.querySelector(sel).addEventListener('change', renderList));
+    ['#w-from', '#w-to'].forEach(sel => main.querySelector(sel).addEventListener('change', renderList));
+    ['#w-veiculo', '#w-peca'].forEach(sel => { main.querySelector(sel).addEventListener('input', renderList); main.querySelector(sel).addEventListener('change', renderList); });
     renderList();
   }
 
@@ -545,7 +562,8 @@ const WarehouseScreens = (function () {
         <div class="filter-bar">
           <label class="field">De<input type="date" id="u-from" value="${monthStart}"></label>
           <label class="field">Até<input type="date" id="u-to" value="${today}"></label>
-          <label class="field">Veículo<select id="u-veiculo"><option value="Todos">Todos</option>${ctx.state.veiculos.map(v => option(v.id, v.placa)).join('')}</select></label>
+          <label class="field">Veículo (placa)<input type="text" id="u-veiculo" placeholder="Todos" list="u-vehicle-list" autocomplete="off">
+          <datalist id="u-vehicle-list">${ctx.state.veiculos.map(v => `<option value="${esc(v.placa)}">${esc(v.marca)}${v.situacao === 'Inativo' ? ' (inativo)' : ''}</option>`).join('')}</datalist></label>
           <label class="field">Tipo<select id="u-tipo"><option value="Todos">Todos</option><option value="Interno">Interno (almoxarifado)</option><option value="Externo">Externo</option></select></label>
         </div>
         <div id="used-parts-list"></div>
@@ -554,7 +572,13 @@ const WarehouseScreens = (function () {
     const renderList = () => {
       const from = main.querySelector('#u-from').value;
       const to = main.querySelector('#u-to').value;
-      const veiculoId = main.querySelector('#u-veiculo').value;
+      const uVeiculoBusca = main.querySelector('#u-veiculo').value;
+      const veiculoId = (function() {
+        const t = Utils.normalizePlate(uVeiculoBusca);
+        if (!t || t === 'TODAS' || t === 'TODOS') return 'Todos';
+        const v = ctx.state.veiculos.find(vv => Utils.normalizePlate(vv.placa) === t);
+        return v ? v.id : uVeiculoBusca;
+      })();
       const tipo = main.querySelector('#u-tipo').value;
 
       const retiradas = Warehouse.withdrawals(ctx.state, { from, to, veiculoId }).map(r => ({
@@ -606,7 +630,8 @@ const WarehouseScreens = (function () {
       ) + `<p class="totals">Total de unidades: <strong>${rows.reduce((a, r) => a + r.quantidade, 0)}</strong>  ·  Valor total: <strong>${money(Utils.sum(rows, r => r.valorTotal))}</strong></p>`;
     };
 
-    ['#u-from', '#u-to', '#u-veiculo', '#u-tipo'].forEach(sel => main.querySelector(sel).addEventListener('change', renderList));
+    ['#u-from', '#u-to', '#u-tipo'].forEach(sel => main.querySelector(sel).addEventListener('change', renderList));
+    ['#u-veiculo'].forEach(sel => { main.querySelector(sel).addEventListener('input', renderList); main.querySelector(sel).addEventListener('change', renderList); });
     renderList();
   }
 
