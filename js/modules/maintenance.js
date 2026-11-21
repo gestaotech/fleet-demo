@@ -8,7 +8,7 @@ const MaintenanceScreens = (function () {
         '<a class="btn btn-primary" href="#/manutencao/nova">Nova manutenção</a>')}
       <section class="card">
         <div class="filter-bar">
-          <label class="field">Veículo<select id="m-veiculo"><option value="Todos">Todos</option>${ctx.state.veiculos.map(v => option(v.id, v.placa)).join('')}</select></label>
+          <label class="field">Veículo (placa)${UI.searchInput('vehicle', ctx.state, { id: 'm-veiculo', placeholder: 'Todos' })}</label>
           <label class="field">Situação<select id="m-status"><option value="Todos">Todas</option>${Maintenance.STATUS.map(s => option(s, s)).join('')}</select></label>
           <label class="field">Entrada de<input type="date" id="m-from"></label>
           <label class="field">Entrada até<input type="date" id="m-to"></label>
@@ -18,7 +18,7 @@ const MaintenanceScreens = (function () {
 
     const render = () => {
       const rows = Maintenance.list(ctx.state, {
-        veiculoId: main.querySelector('#m-veiculo').value,
+        veiculoId: Search.vehicleFilter(ctx.state, main.querySelector('#m-veiculo').value),
         status: main.querySelector('#m-status').value,
         from: main.querySelector('#m-from').value,
         to: main.querySelector('#m-to').value,
@@ -41,7 +41,8 @@ const MaintenanceScreens = (function () {
         'Nenhuma manutenção corresponde ao filtro.',
       );
     };
-    main.querySelectorAll('select, input[type="date"]').forEach(el => el.addEventListener('change', render));
+    main.querySelectorAll('select, input[type="date"], input[type="text"]').forEach(el => el.addEventListener('change', render));
+    main.querySelector('#m-veiculo').addEventListener('input', render);
     render();
   }
 
@@ -50,9 +51,7 @@ const MaintenanceScreens = (function () {
       ${pageHeader('Nova manutenção', 'A manutenção recebe um código próprio e começa com a situação Aberta.')}
       <form class="card form-grid" id="maintenance-form" novalidate>
         <div class="form-errors full" id="form-errors"></div>
-        <label class="field">Veículo
-          <select name="veiculoId" required><option value="">Selecione…</option>${ctx.state.veiculos.filter(Vehicles.isActive).map(v => option(v.id, `${v.placa} – ${v.marca}`)).join('')}</select>
-        </label>
+        <label class="field">Veículo (placa)${UI.searchField('vehicle', ctx.state, { id: 'maint-veiculo-busca', name: 'veiculoId', required: true, apenasAtivos: true })}</label>
         <label class="field">Data e hora de entrada<input name="dataEntrada" type="datetime-local" required value="${Utils.nowIso()}"></label>
         <label class="field">Quilometragem de entrada (km)
           <input name="quilometragem" type="number" min="0" step="1" inputmode="numeric" placeholder="Opcional">
@@ -79,8 +78,10 @@ const MaintenanceScreens = (function () {
       if (km !== null && !kmInput.value) kmInput.value = String(km);
     });
 
+    const syncSearch = UI.bindSearchFields(formEl, ctx.state);
     formEl.addEventListener('submit', event => {
       event.preventDefault();
+      syncSearch();
       const result = Maintenance.open(ctx.state, readForm(event.currentTarget));
       if (!result.ok) {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);

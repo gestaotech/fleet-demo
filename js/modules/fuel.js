@@ -15,20 +15,6 @@ const FuelScreens = (function () {
     return value === undefined || value === null || value === '' ? '' : String(value).replace('.', ',');
   }
 
-  function vehicleOptions(state, selectedId) {
-    return state.veiculos
-      .filter(v => v.situacao === 'Ativo')
-      .map(v => option(v.id, `${v.placa} – ${v.marca}`, v.id === selectedId))
-      .join('');
-  }
-
-  /* No filtro, todos os veículos aparecem porque existem registros históricos de veículos inativos. */
-  function vehicleFilterOptions(state) {
-    return state.veiculos
-      .map(v => option(v.id, `${v.placa} – ${v.marca}${v.situacao === 'Inativo' ? ' (inativo)' : ''}`))
-      .join('');
-  }
-
   function consumptionBadge(media) {
     return media === null
       ? UI.badge(ORIGEM_CONSUMO, 'muted')
@@ -47,7 +33,7 @@ const FuelScreens = (function () {
         <div class="filter-bar">
           <label class="field">De<input type="date" id="fuel-from" value="${monthStart}"></label>
           <label class="field">Até<input type="date" id="fuel-to" value="${today}"></label>
-          <label class="field">Veículo<select id="fuel-veiculo"><option value="Todos">Todos</option>${vehicleFilterOptions(ctx.state)}</select></label>
+          <label class="field">Veículo (placa)${UI.searchInput('vehicle', ctx.state, { id: 'fuel-veiculo', placeholder: 'Todas' })}</label>
           <div class="field field-action">
             <button type="button" class="btn btn-ghost" id="fuel-clear">Limpar filtros</button>
           </div>
@@ -66,7 +52,7 @@ const FuelScreens = (function () {
     const filters = () => ({
       from: main.querySelector('#fuel-from').value,
       to: main.querySelector('#fuel-to').value,
-      veiculoId: main.querySelector('#fuel-veiculo').value,
+      veiculoId: Search.vehicleFilter(ctx.state, main.querySelector('#fuel-veiculo').value),
     });
 
     const render = () => {
@@ -121,11 +107,12 @@ const FuelScreens = (function () {
 
     main.querySelector('#fuel-from').addEventListener('change', render);
     main.querySelector('#fuel-to').addEventListener('change', render);
+    main.querySelector('#fuel-veiculo').addEventListener('input', render);
     main.querySelector('#fuel-veiculo').addEventListener('change', render);
     main.querySelector('#fuel-clear').addEventListener('click', () => {
       main.querySelector('#fuel-from').value = monthStart;
       main.querySelector('#fuel-to').value = today;
-      main.querySelector('#fuel-veiculo').value = 'Todos';
+      main.querySelector('#fuel-veiculo').value = '';
       render();
     });
     render();
@@ -148,9 +135,7 @@ const FuelScreens = (function () {
         'Informe o valor total pago ou o preço por litro. Se informar os dois, o sistema confere a consistência.')}
       <form class="card form-grid" id="fuel-form" novalidate>
         <div class="form-errors full" id="form-errors"></div>
-        <label class="field">Veículo
-          <select name="veiculoId" required><option value="">Selecione…</option>${vehicleOptions(ctx.state, current.veiculoId)}</select>
-        </label>
+        <label class="field">Veículo (placa)${UI.searchField('vehicle', ctx.state, { id: 'fuel-veiculo-busca', name: 'veiculoId', required: true, apenasAtivos: true, selectedId: current.veiculoId })}</label>
         <label class="field">Data e hora<input name="dataHora" type="datetime-local" required value="${esc(current.dataHora)}"></label>
         <label class="field">Quilometragem (km)
           <input name="quilometragem" type="number" min="0" step="1" inputmode="numeric" required value="${esc(current.quilometragem)}">
@@ -203,11 +188,13 @@ const FuelScreens = (function () {
     litros.addEventListener('input', updatePriceHint);
     valorTotal.addEventListener('input', updatePriceHint);
     precoLitro.addEventListener('input', updatePriceHint);
+    const syncSearch = UI.bindSearchFields(formEl, ctx.state);
     updateKmHint();
     updatePriceHint();
 
     formEl.addEventListener('submit', event => {
       event.preventDefault();
+      syncSearch();
       const data = readForm(formEl);
       const result = editing ? Fuel.update(ctx.state, editing.id, data) : Fuel.create(ctx.state, data);
       if (!result.ok) {
@@ -315,9 +302,7 @@ const FuelScreens = (function () {
       </section>
       <form class="card form-grid" id="fuel-stock-form" novalidate>
         <div class="form-errors full" id="form-errors"></div>
-        <label class="field">Veículo
-          <select name="veiculoId" required><option value="">Selecione…</option>${vehicleOptions(ctx.state, '')}</select>
-        </label>
+        <label class="field">Veículo (placa)${UI.searchField('vehicle', ctx.state, { id: 'fuel-stock-veiculo', name: 'veiculoId', required: true, apenasAtivos: true })}</label>
         <label class="field">Data e hora<input name="dataHora" type="datetime-local" required value="${esc(Utils.nowIso())}"></label>
         <label class="field">Quilometragem (km)
           <input name="quilometragem" type="number" min="0" step="1" inputmode="numeric" required placeholder="0">
@@ -359,8 +344,10 @@ const FuelScreens = (function () {
       );
     };
 
+    const syncSearch = UI.bindSearchFields(formEl, ctx.state);
     formEl.addEventListener('submit', event => {
       event.preventDefault();
+      syncSearch();
       const data = readForm(formEl);
       const litros = Utils.parseDecimal(data.litros);
       const errors = [];

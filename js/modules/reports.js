@@ -33,7 +33,7 @@ const ReportScreens = (function () {
   }
 
   function vehicleSelect(state) {
-    return `<label class="field">Veículo<select name="veiculoId"><option value="Todos">Todos</option>${state.veiculos.map(v => option(v.id, v.placa)).join('')}</select></label>`;
+    return `<label class="field">Veículo (placa)${UI.searchInput('vehicle', state, { name: 'veiculoId', placeholder: 'Todos' })}</label>`;
   }
 
   function readFilters(container) {
@@ -60,7 +60,10 @@ const ReportScreens = (function () {
     let current = null;
 
     const run = () => {
-      current = build(readFilters(filters));
+      const raw = readFilters(filters);
+      if (raw.veiculoId !== undefined) raw.veiculoId = Search.vehicleFilter(ctx.state, raw.veiculoId);
+      if (raw.pecaId !== undefined) raw.pecaId = Search.partFilter(ctx.state, raw.pecaId);
+      current = build(raw);
       results.innerHTML = `
         <div class="report-actions">
           <button type="button" class="btn btn-ghost" data-export>Exportar CSV</button>
@@ -176,7 +179,7 @@ const ReportScreens = (function () {
     reportPage(main, ctx, 'retiradas', 'Relatório de retiradas',
       'Saídas do almoxarifado. O valor usa o valor unitário vigente na data da retirada.',
       `${periodFields()}${vehicleSelect(ctx.state)}
-       <label class="field">Peça<select name="pecaId"><option value="Todas">Todas</option>${ctx.state.pecas.map(p => option(p.id, p.descricao)).join('')}</select></label>`,
+       <label class="field">Peça (código/descrição)${UI.searchInput('part', ctx.state, { name: 'pecaId', placeholder: 'Todas' })}</label>`,
       (f) => {
         const r = Reports.withdrawalsReport(ctx.state, f);
         return {

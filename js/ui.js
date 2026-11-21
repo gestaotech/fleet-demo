@@ -88,6 +88,93 @@ const UI = (function () {
     return data;
   }
 
+  /*
+   * Barras de pesquisa digitada (placa de veículo, código ou descrição de peça), com sugestões.
+   * A regra de correspondência está em core/search.js. Em formulários, um campo oculto guarda o id escolhido.
+   */
+  const SEARCH_NOUNS = { vehicle: 'veículo', part: 'peça' };
+
+  function searchItems(kind, state, apenasAtivos) {
+    if (kind === 'vehicle') {
+      return state.veiculos
+        .filter(v => !apenasAtivos || v.situacao === 'Ativo')
+        .map(v => ({ value: v.placa, label: `${v.marca}${v.situacao === 'Inativo' ? ' (inativo)' : ''}` }));
+    }
+    return state.pecas.map(p => ({ value: p.codigo, label: p.descricao }));
+  }
+
+  function searchText(kind, state, id) {
+    if (!id) return '';
+    const registro = kind === 'vehicle' ? Vehicles.find(state, id) : Warehouse.findPart(state, id);
+    if (!registro) return '';
+    return kind === 'vehicle' ? registro.placa : registro.codigo;
+  }
+
+  /* opts: { id, name (filtro lido pelo módulo), forField (campo oculto ligado), placeholder, value, required, apenasAtivos } */
+  function searchInput(kind, state, opts = {}) {
+    const listId = `${opts.id || opts.name || opts.forField}-list`;
+    const items = searchItems(kind, state, Boolean(opts.apenasAtivos));
+    const attrs = [
+      opts.id ? `id="${esc(opts.id)}"` : '',
+      opts.name ? `name="${esc(opts.name)}"` : '',
+      opts.forField ? `data-search-for="${esc(opts.forField)}"` : '',
+      opts.apenasAtivos ? 'data-apenas-ativos' : '',
+      opts.required ? 'required' : '',
+    ].filter(Boolean).join(' ');
+    return `<input type="text" data-search="${esc(kind)}" ${attrs} value="${esc(opts.value || '')}" placeholder="${esc(opts.placeholder || '')}" list="${esc(listId)}" autocomplete="off">
+      <datalist id="${esc(listId)}">${items.map(i => `<option value="${esc(i.value)}">${esc(i.label)}</option>`).join('')}</datalist>`;
+  }
+
+  /* Campo de formulário: texto digitado + campo oculto com o id (name) + aviso. Use dentro de um <label class="field">. */
+  function searchField(kind, state, opts) {
+    return `${searchInput(kind, state, {
+      id: opts.id, forField: opts.name, placeholder: opts.placeholder, required: opts.required,
+      apenasAtivos: opts.apenasAtivos, value: searchText(kind, state, opts.selectedId),
+    })}
+      <input type="hidden" name="${esc(opts.name)}" value="${esc(opts.selectedId || '')}">
+      <span class="hint" data-search-hint="${esc(opts.name)}"></span>`;
+  }
+
+  function searchHint(kind, state, result, busca) {
+    if (result.id) {
+      if (kind !== 'part') return '';
+      const part = Warehouse.findPart(state, result.id);
+      return `Saldo disponível: ${Warehouse.balance(state, part.id)} un. (${part.codigo} — ${part.descricao})`;
+    }
+    if (!Utils.normalizeText(busca)) return '';
+    if (result.count > 1) return `${result.count} correspondências encontradas. Complete a busca ou escolha uma sugestão na lista.`;
+    return `Nenhum ${SEARCH_NOUNS[kind]} encontrado para esta busca.`;
+  }
+
+  /*
+   * Liga as barras de pesquisa de um formulário. Devolve a função que resolve os campos;
+   * deve ser chamada antes de ler o formulário no envio.
+   */
+  function bindSearchFields(root, state) {
+    const syncs = [...root.querySelectorAll('input[data-search-for]')].map(input => {
+      const kind = input.dataset.search;
+      const name = input.dataset.searchFor;
+      const hidden = root.querySelector(`input[type="hidden"][name="${name}"]`);
+      const hint = root.querySelector(`[data-search-hint="${name}"]`);
+      const apenasAtivos = input.hasAttribute('data-apenas-ativos');
+      const sync = () => {
+        const busca = input.value;
+        const result = kind === 'vehicle'
+          ? Search.vehicle(state, busca, { apenasAtivos })
+          : Search.part(state, busca);
+        const anterior = hidden.value;
+        hidden.value = result.id || '';
+        hint.textContent = searchHint(kind, state, result, busca);
+        if (hidden.value !== anterior) hidden.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      input.addEventListener('input', sync);
+      input.addEventListener('change', sync);
+      sync();
+      return sync;
+    });
+    return () => syncs.forEach(sync => sync());
+  }
+
   function toast(message, tone = 'success') {
     const region = document.getElementById('toast-region');
     if (!region) return;
@@ -107,5 +194,6 @@ const UI = (function () {
   return {
     esc, badge, situacaoBadge, operacionalBadge, manutencaoBadge, kpi, pageHeader,
     table, errorBox, successBox, showErrors, option, monthSelect, readForm, toast, confirmAction,
+    searchInput, searchField, bindSearchFields,
   };
 })();
