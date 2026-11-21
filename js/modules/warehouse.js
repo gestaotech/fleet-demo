@@ -43,34 +43,80 @@ const WarehouseScreens = (function () {
       .join('');
   }
 
-  function bindVehicleMaintenanceFilter(form) {
-    const vehicle = form.querySelector('[name="veiculoId"]');
+  function bindVehicleMaintenanceFilter(form, state) {
+    const vehicleBusca = form.querySelector('[name="veiculoBusca"]');
+    const vehicleHidden = form.querySelector('[name="veiculoId"]');
     const maintenance = form.querySelector('[name="manutencaoId"]');
-    if (!vehicle || !maintenance) return;
+    if (!vehicleBusca || !maintenance) return;
     const apply = () => {
+      const id = resolveVehicleId(state, vehicleBusca.value);
+      vehicleHidden.value = id || '';
       maintenance.querySelectorAll('option[data-veiculo]').forEach(opt => {
-        opt.hidden = opt.dataset.veiculo !== vehicle.value;
+        opt.hidden = id ? opt.dataset.veiculo !== id : false;
       });
       if (maintenance.selectedOptions[0] && maintenance.selectedOptions[0].hidden) maintenance.value = '';
     };
-    vehicle.addEventListener('change', apply);
+    vehicleBusca.addEventListener('input', apply);
+    vehicleBusca.addEventListener('change', apply);
     apply();
   }
 
+  function resolvePartId(state, busca) {
+    const termo = Utils.searchKey(busca);
+    if (!termo) return null;
+    // Exact match by code
+    const porCodigo = state.pecas.find(p => Utils.searchKey(p.codigo) === termo);
+    if (porCodigo) return porCodigo.id;
+    // Match by description
+    const porDesc = state.pecas.filter(p => Utils.searchKey(p.descricao).includes(termo));
+    if (porDesc.length === 1) return porDesc[0].id;
+    // Match by code partial
+    const porCodigoParcial = state.pecas.filter(p => Utils.searchKey(p.codigo).includes(termo));
+    if (porCodigoParcial.length === 1) return porCodigoParcial[0].id;
+    return null;
+  }
+
+  function resolveVehicleId(state, busca) {
+    const termo = Utils.normalizePlate(busca);
+    if (!termo) return null;
+    const veiculo = state.veiculos.find(v => Utils.normalizePlate(v.placa) === termo);
+    if (veiculo) return veiculo.id;
+    // Partial match
+    const parcial = state.veiculos.filter(v => Utils.normalizePlate(v.placa).includes(termo) && v.situacao === 'Ativo');
+    if (parcial.length === 1) return parcial[0].id;
+    return null;
+  }
+
   function bindPartBalance(form, state) {
-    const select = form.querySelector('[name="pecaId"]');
+    const busca = form.querySelector('[name="pecaBusca"]');
+    const hidden = form.querySelector('[name="pecaId"]');
     const hint = form.querySelector('[data-balance]');
     const quantity = form.querySelector('[name="quantidade"]');
     const update = () => {
-      const part = Warehouse.findPart(state, select.value);
-      if (!part) {
-        hint.textContent = 'Selecione uma peça para ver o saldo disponível.';
+      const termo = Utils.searchKey(busca.value);
+      if (!termo) {
+        hidden.value = '';
+        hint.textContent = 'Digite o código ou descrição da peça para ver o saldo disponível.';
         return;
       }
-      hint.textContent = `Saldo disponível: ${Warehouse.balance(state, part.id)} un.`;
+      const id = resolvePartId(state, busca.value);
+      hidden.value = id || '';
+      const part = id ? Warehouse.findPart(state, id) : null;
+      if (!part) {
+        // Check if there are multiple matches
+        const matches = state.pecas.filter(p => Utils.searchKey(p.codigo).includes(termo) || Utils.searchKey(p.descricao).includes(termo));
+        if (matches.length > 1) {
+          hint.textContent = `${matches.length} peças encontradas. Selecione uma na lista de sugestões.`;
+        } else {
+          hint.textContent = 'Peça não encontrada. Verifique o código ou a descrição.';
+        }
+        return;
+      }
+      hint.textContent = `Saldo disponível: ${Warehouse.balance(state, part.id)} un. (${part.codigo} — ${part.descricao})`;
       if (quantity) quantity.max = Warehouse.balance(state, part.id);
     };
-    select.addEventListener('change', update);
+    busca.addEventListener('input', update);
+    busca.addEventListener('change', update);
     update();
   }
 
@@ -82,8 +128,10 @@ const WarehouseScreens = (function () {
          <input type="hidden" name="manutencaoId" value="${esc(fixed.id)}">
          <div class="field"><span>Veículo</span><strong>${esc((Vehicles.find(state, fixed.veiculoId) || {}).placa || fixed.veiculoId)}</strong></div>
          <div class="field"><span>Manutenção</span><strong>${esc(fixed.id)}</strong></div>`
-      : `<label class="field">Veículo de destino
-           <select name="veiculoId" required><option value="">Selecione…</option>${vehicleOptions(state)}</select>
+      : `<label class="field">Veículo de destino (digite a placa)
+           <input name="veiculoBusca" type="text" required placeholder="Ex.: DEM1A01" list="vehicle-list" autocomplete="off">
+           <datalist id="vehicle-list">${state.veiculos.filter(v => v.situacao === 'Ativo').map(v => `<option value="${esc(v.placa)}">${esc(v.marca)}</option>`).join('')}</datalist>
+           <input type="hidden" name="veiculoId">
          </label>
          <label class="field">Manutenção vinculada (opcional)
            <select name="manutencaoId"><option value="">Retirada direta, sem manutenção</option>${openMaintenanceOptions(state)}</select>
@@ -91,8 +139,10 @@ const WarehouseScreens = (function () {
     return `
       <form class="card form-grid" data-form="withdrawal" novalidate>
         <div class="form-errors full"></div>
-        <label class="field full">Peça retirada
-          <select name="pecaId" required><option value="">Selecione…</option>${partOptions(state)}</select>
+        <label class="field full">Peça retirada (digite código ou descrição)
+          <input name="pecaBusca" type="text" required placeholder="Ex.: FLT-1001 ou filtro" list="part-list" autocomplete="off">
+          <datalist id="part-list">${state.pecas.map(p => `<option value="${esc(p.codigo)}">${esc(p.descricao)} (saldo ${Warehouse.balance(state, p.id)})</option>`).join('')}</datalist>
+          <input type="hidden" name="pecaId">
         </label>
         <p class="hint full" data-balance></p>
         ${vehicleField}
@@ -108,7 +158,7 @@ const WarehouseScreens = (function () {
 
   /* Liga o formulário de retirada. onDone recebe a movimentação registrada. */
   function bindWithdrawalForm(form, state, ctx, opts = {}, onDone) {
-    if (!opts.maintenance) bindVehicleMaintenanceFilter(form);
+    if (!opts.maintenance) bindVehicleMaintenanceFilter(form, state);
     bindPartBalance(form, state);
     form.addEventListener('submit', event => {
       event.preventDefault();
@@ -116,6 +166,17 @@ const WarehouseScreens = (function () {
       form.dataset.sending = 'true';
       const button = form.querySelector('button[type="submit"]');
       button.disabled = true;
+      // Resolve typed search values to IDs
+      const pecaBusca = form.querySelector('[name="pecaBusca"]');
+      const pecaHidden = form.querySelector('[name="pecaId"]');
+      const veiculoBusca = form.querySelector('[name="veiculoBusca"]');
+      const veiculoHidden = form.querySelector('[name="veiculoId"]');
+      if (pecaBusca && pecaHidden && !pecaHidden.value) {
+        pecaHidden.value = resolvePartId(state, pecaBusca.value) || '';
+      }
+      if (veiculoBusca && veiculoHidden && !veiculoHidden.value) {
+        veiculoHidden.value = resolveVehicleId(state, veiculoBusca.value) || '';
+      }
       const data = readForm(form);
       const result = opts.maintenance
         ? Maintenance.registerWithdrawal(ctx.state, opts.maintenance.id, data)
@@ -157,7 +218,7 @@ const WarehouseScreens = (function () {
   }
 
   function bindExternalForm(form, ctx, opts = {}, onDone) {
-    if (!opts.maintenance) bindVehicleMaintenanceFilter(form);
+    if (!opts.maintenance) bindVehicleMaintenanceFilter(form, ctx.state);
     form.addEventListener('submit', event => {
       event.preventDefault();
       if (form.dataset.sending === 'true') return;
