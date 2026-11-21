@@ -115,6 +115,8 @@ ul, ol { margin: 0 0 10px; padding-left: 20px; }
 .data-table tbody tr:hover { background: #fafbfd; }
 .data-table .num { text-align: right; white-space: nowrap; }
 .data-table td.empty { text-align: center; color: var(--gray-500); padding: 22px; }
+.data-table tr:has(+ tr.row-footer) td { border-bottom: none; }
+.data-table tr.row-footer td { padding-top: 0; border-top: none; }
 .row-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
 /* Badges */
