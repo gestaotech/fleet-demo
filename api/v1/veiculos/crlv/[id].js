@@ -53,6 +53,18 @@ const SQL_GRAVAR = `
         enviado_em = EXCLUDED.enviado_em
   RETURNING enviado_em`;
 
+/* Tabela ausente (código 42P01) significa que a migração 004 ainda não foi aplicada no banco. */
+async function executarDocumento(operacao) {
+  try {
+    return await operacao();
+  } catch (erro) {
+    if (erro && erro.code === "42P01") {
+      throw new ApiError(503, "DOCUMENTOS_INDISPONIVEIS", "O armazenamento de documentos ainda não está disponível. Avise o administrador do sistema.");
+    }
+    throw erro;
+  }
+}
+
 function identificadorVeiculo(req) {
   const id = req.query && req.query.id;
   if (typeof id !== "string" || !/^[A-Za-z0-9-]{1,40}$/.test(id)) {
@@ -66,7 +78,7 @@ function nomeSeguro(nome) {
 }
 
 async function responderMetadados(res, sessao, id) {
-  const linhas = await consultar(SQL_LER_METADADOS, [sessao.empresa.id, id], { leitura: true });
+  const linhas = await executarDocumento(() => consultar(SQL_LER_METADADOS, [sessao.empresa.id, id], { leitura: true }));
   const doc = linhas[0];
   enviarDados(res, 200, {
     veiculoId: id,
@@ -77,7 +89,7 @@ async function responderMetadados(res, sessao, id) {
 }
 
 async function responderArquivo(res, sessao, id) {
-  const linhas = await consultar(SQL_LER_ARQUIVO, [sessao.empresa.id, id], { leitura: true });
+  const linhas = await executarDocumento(() => consultar(SQL_LER_ARQUIVO, [sessao.empresa.id, id], { leitura: true }));
   if (!linhas[0]) throw new ApiError(404, "DOCUMENTO_NAO_ENCONTRADO", "Nenhum CRLV enviado para este veículo.");
   const conteudo = Buffer.from(linhas[0].conteudo);
   res.statusCode = 200;
@@ -97,14 +109,14 @@ async function responderEnvio(req, res, sessao, id) {
   const existe = await consultar(SQL_VEICULO_EXISTE, [sessao.empresa.id, id]);
   if (!existe[0]) throw new ApiError(404, "VEICULO_NAO_ENCONTRADO", "Veículo não encontrado nesta empresa.");
 
-  const gravado = await consultar(SQL_GRAVAR, [
+  const gravado = await executarDocumento(() => consultar(SQL_GRAVAR, [
     sessao.empresa.id,
     id,
     arquivo.nome,
     arquivo.conteudo.length,
     paraBytea(arquivo.conteudo),
     sessao.usuario.id,
-  ]);
+  ]));
 
   await registrarAuditoria({
     acao: "CRLV_ENVIADO",

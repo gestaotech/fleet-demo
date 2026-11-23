@@ -196,7 +196,7 @@ const VehicleScreens = (function () {
         if (arquivo) {
           const envio = await enviarCrlv(veiculoId, arquivo);
           if (!envio.ok) {
-            ctx.toast(`Veículo salvo, mas o CRLV não foi enviado: ${envio.error.message}`, 'error');
+            ctx.toast(`Veículo salvo, mas o CRLV não foi enviado (${envio.error.code || envio.status}): ${envio.error.message}`, 'error');
             ctx.go(`#/veiculos/${veiculoId}`);
             return;
           }
