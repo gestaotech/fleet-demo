@@ -23,7 +23,7 @@ const {
 } = require("../../../../lib/http");
 const { exigirSessao, exigirPermissao, exigirAlgumaPermissao } = require("../../../../lib/auth");
 const { registrarAuditoria } = require("../../../../lib/audit");
-const { validarArquivoPdf, LIMITE_PDF_BYTES } = require("../../../../lib/documentos");
+const { validarArquivoPdf, LIMITE_PDF_BYTES, paraBytea } = require("../../../../lib/documentos");
 
 const LIMITE_CORPO_BYTES = Math.ceil((LIMITE_PDF_BYTES * 4) / 3) + 64 * 1024;
 
@@ -102,7 +102,7 @@ async function responderEnvio(req, res, sessao, id) {
     id,
     arquivo.nome,
     arquivo.conteudo.length,
-    arquivo.conteudo,
+    paraBytea(arquivo.conteudo),
     sessao.usuario.id,
   ]);
 
