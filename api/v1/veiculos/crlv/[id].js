@@ -2,7 +2,8 @@
 
 /*
  * GET /api/v1/veiculos/crlv/:id           -> dados do CRLV anexado (documento: null se não houver).
- * GET /api/v1/veiculos/crlv/:id?arquivo=1 -> o próprio PDF, para visualizar ou baixar.
+ * GET /api/v1/veiculos/crlv/:id?arquivo=1 -> o próprio PDF, para visualizar.
+ * GET /api/v1/veiculos/crlv/:id?arquivo=1&download=1 -> o mesmo PDF, como download (cópia para outro dispositivo).
  * PUT /api/v1/veiculos/crlv/:id           -> envia ou substitui o CRLV. Corpo: { nomeArquivo, conteudoBase64 }.
  *
  * Leitura: qualquer usuário com acesso ao sistema. Escrita: módulo "veiculos".
@@ -23,7 +24,7 @@ const {
 } = require("../../../../lib/http");
 const { exigirSessao, exigirPermissao, exigirAlgumaPermissao } = require("../../../../lib/auth");
 const { registrarAuditoria } = require("../../../../lib/audit");
-const { validarArquivoPdf, LIMITE_PDF_BYTES } = require("../../../../lib/documentos");
+const { validarArquivoPdf, LIMITE_PDF_BYTES, paraBytea } = require("../../../../lib/documentos");
 
 const LIMITE_CORPO_BYTES = Math.ceil((LIMITE_PDF_BYTES * 4) / 3) + 64 * 1024;
 
@@ -53,6 +54,18 @@ const SQL_GRAVAR = `
         enviado_em = EXCLUDED.enviado_em
   RETURNING enviado_em`;
 
+/* Tabela ausente (código 42P01) significa que a migração 004 ainda não foi aplicada no banco. */
+async function executarDocumento(operacao) {
+  try {
+    return await operacao();
+  } catch (erro) {
+    if (erro && erro.code === "42P01") {
+      throw new ApiError(503, "DOCUMENTOS_INDISPONIVEIS", "O armazenamento de documentos ainda não está disponível. Avise o administrador do sistema.");
+    }
+    throw erro;
+  }
+}
+
 function identificadorVeiculo(req) {
   const id = req.query && req.query.id;
   if (typeof id !== "string" || !/^[A-Za-z0-9-]{1,40}$/.test(id)) {
@@ -66,7 +79,7 @@ function nomeSeguro(nome) {
 }
 
 async function responderMetadados(res, sessao, id) {
-  const linhas = await consultar(SQL_LER_METADADOS, [sessao.empresa.id, id], { leitura: true });
+  const linhas = await executarDocumento(() => consultar(SQL_LER_METADADOS, [sessao.empresa.id, id], { leitura: true }));
   const doc = linhas[0];
   enviarDados(res, 200, {
     veiculoId: id,
@@ -76,13 +89,14 @@ async function responderMetadados(res, sessao, id) {
   });
 }
 
-async function responderArquivo(res, sessao, id) {
-  const linhas = await consultar(SQL_LER_ARQUIVO, [sessao.empresa.id, id], { leitura: true });
+async function responderArquivo(req, res, sessao, id) {
+  const linhas = await executarDocumento(() => consultar(SQL_LER_ARQUIVO, [sessao.empresa.id, id], { leitura: true }));
   if (!linhas[0]) throw new ApiError(404, "DOCUMENTO_NAO_ENCONTRADO", "Nenhum CRLV enviado para este veículo.");
   const conteudo = Buffer.from(linhas[0].conteudo);
+  const modo = req.query && req.query.download === "1" ? "attachment" : "inline";
   res.statusCode = 200;
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `inline; filename="${nomeSeguro(linhas[0].nome_arquivo)}"`);
+  res.setHeader("Content-Disposition", `${modo}; filename="${nomeSeguro(linhas[0].nome_arquivo)}"`);
   res.setHeader("Content-Length", String(conteudo.length));
   res.setHeader("Cache-Control", "private, no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -97,14 +111,14 @@ async function responderEnvio(req, res, sessao, id) {
   const existe = await consultar(SQL_VEICULO_EXISTE, [sessao.empresa.id, id]);
   if (!existe[0]) throw new ApiError(404, "VEICULO_NAO_ENCONTRADO", "Veículo não encontrado nesta empresa.");
 
-  const gravado = await consultar(SQL_GRAVAR, [
+  const gravado = await executarDocumento(() => consultar(SQL_GRAVAR, [
     sessao.empresa.id,
     id,
     arquivo.nome,
     arquivo.conteudo.length,
-    arquivo.conteudo,
+    paraBytea(arquivo.conteudo),
     sessao.usuario.id,
-  ]);
+  ]));
 
   await registrarAuditoria({
     acao: "CRLV_ENVIADO",
@@ -133,7 +147,7 @@ async function handler(req, res) {
 
   if (req.method === "PUT") return responderEnvio(req, res, sessao, id);
   exigirAlgumaPermissao(sessao);
-  if (req.query && req.query.arquivo === "1") return responderArquivo(res, sessao, id);
+  if (req.query && req.query.arquivo === "1") return responderArquivo(req, res, sessao, id);
   return responderMetadados(res, sessao, id);
 }
 

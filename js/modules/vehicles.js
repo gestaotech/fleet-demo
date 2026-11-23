@@ -196,7 +196,7 @@ const VehicleScreens = (function () {
         if (arquivo) {
           const envio = await enviarCrlv(veiculoId, arquivo);
           if (!envio.ok) {
-            ctx.toast(`Veículo salvo, mas o CRLV não foi enviado: ${envio.error.message}`, 'error');
+            ctx.toast(`Veículo salvo, mas o CRLV não foi enviado (${envio.error.code || envio.status}): ${envio.error.message}`, 'error');
             ctx.go(`#/veiculos/${veiculoId}`);
             return;
           }
@@ -437,7 +437,7 @@ const VehicleScreens = (function () {
       }
       const doc = res.data.documento;
       crlvSlot.innerHTML = doc
-        ? `${esc(crlvResumo(doc))} <a class="link" href="/api/v1/veiculos/crlv/${encodeURIComponent(vehicle.id)}?arquivo=1" target="_blank" rel="noopener">Abrir PDF</a>`
+        ? `${esc(crlvResumo(doc))} <a class="link" href="/api/v1/veiculos/crlv/${encodeURIComponent(vehicle.id)}?arquivo=1" target="_blank" rel="noopener">Abrir PDF</a> <a class="link" href="/api/v1/veiculos/crlv/${encodeURIComponent(vehicle.id)}?arquivo=1&amp;download=1">Baixar cópia</a>`
         : `Nenhum CRLV anexado. <a class="link" href="#/veiculos/${esc(vehicle.id)}/editar">Anexar em Editar veículo</a>`;
     });
   }

@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { validarArquivoPdf, LIMITE_PDF_BYTES } = require('../../lib/documentos');
+const { validarArquivoPdf, LIMITE_PDF_BYTES, paraBytea } = require('../../lib/documentos');
 
 const pdfBase64 = (conteudo = '%PDF-1.4\n%teste\n') => Buffer.from(conteudo).toString('base64');
 
@@ -17,6 +17,14 @@ test('aceita PDF real e devolve o nome e o conteúdo decodificado', () => {
   const resultado = validarArquivoPdf({ nomeArquivo: 'crlv.pdf', conteudoBase64: pdfBase64() });
   assert.equal(resultado.nome, 'crlv.pdf');
   assert.equal(resultado.conteudo.subarray(0, 5).toString('latin1'), '%PDF-');
+});
+
+test('conteúdo vai ao banco como texto hexadecimal que volta ao mesmo PDF', () => {
+  const { conteudo } = validarArquivoPdf({ nomeArquivo: 'crlv.pdf', conteudoBase64: pdfBase64() });
+  const parametro = paraBytea(conteudo);
+  assert.equal(typeof parametro, 'string');
+  assert.ok(parametro.startsWith('\\x'));
+  assert.deepEqual(Buffer.from(parametro.slice(2), 'hex'), conteudo);
 });
 
 test('recusa arquivo que não começa com o cabeçalho de PDF', () => {
