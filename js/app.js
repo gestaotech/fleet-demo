@@ -118,7 +118,16 @@ const App = (function () {
         UI.toast('Os dados foram alterados por outro usuário. Recarregue a página antes de continuar.', 'error');
         return false;
       }
-      const result = await Storage.save(state, revision);
+      let result;
+      try {
+        result = await Storage.save(state, revision);
+      } catch (erro) {
+        const mensagem = erro && erro.message ? erro.message : 'Falha inesperada ao comunicar com o servidor.';
+        syncBanner = `Não foi possível salvar: ${mensagem}. A alteração não foi gravada.`;
+        refreshBanner();
+        UI.toast(syncBanner, 'error');
+        return false;
+      }
       if (result.ok) {
         revision = result.revision;
         syncBanner = '';
@@ -455,7 +464,11 @@ const App = (function () {
       state = null;
       return;
     }
-    state = resultado.state;
+    state = resultado.state || {};
+    // Compatibilidade com estados antigos: coleções do módulo Combustível
+    // devem existir mesmo quando o registro foi criado antes dessas funções.
+    if (!Array.isArray(state.abastecimentos)) state.abastecimentos = [];
+    if (!Array.isArray(state.entradasCombustivel)) state.entradasCombustivel = [];
     revision = resultado.revision;
     loadError = '';
     conflictBlocked = false;
