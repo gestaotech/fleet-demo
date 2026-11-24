@@ -56,7 +56,7 @@ const WarehouseScreens = (function () {
     const partOptions = state.pecas.map(part => `<option value="${esc(part.id)}">${esc(part.codigo)} — ${esc(part.descricao)} (saldo: ${Utils.formatQuantity(Warehouse.balance(state, part.id))})</option>`).join('');
     const partField = fixed
       ? `<label class="field full">Peça retirada (digite código ou descrição)${UI.searchField('part', state, { id: 'withdrawal-peca', name: 'pecaId', placeholder: 'Ex.: FLT-1001 ou filtro', required: true })}</label><label class="field">Quantidade<input name="quantidade" inputmode="decimal" required placeholder="Ex.: 1 ou 1/2"></label>`
-      : `<div class="field full"><span>Peças e quantidades</span><div id="withdrawal-items" class="form-grid"><div class="withdrawal-item-row"><select name="pecaId" required><option value="">Selecione uma peça</option>${partOptions}</select><input name="quantidade" inputmode="decimal" required placeholder="Quantidade"><button type="button" class="btn btn-ghost" data-remove-item aria-label="Remover peça" disabled>Remover</button></div></div><button type="button" class="btn btn-ghost" id="add-withdrawal-item">Adicionar outra peça</button></div>`;
+      : `<div class="field full"><span>Peças e quantidades</span><div id="withdrawal-items" class="form-grid"><div class="withdrawal-item-row form-grid"><select name="pecaId" required><option value="">Selecione uma peça</option>${partOptions}</select><input name="quantidade" inputmode="decimal" required placeholder="Quantidade"><button type="button" class="btn btn-ghost" data-remove-item aria-label="Remover peça" disabled>Remover</button></div></div><button type="button" class="btn btn-ghost" id="add-withdrawal-item">Adicionar outra peça</button></div>`;
     return `<form class="card form-grid" data-form="withdrawal" novalidate><div class="form-errors full"></div>${partField}${vehicleField}<label class="field">Data da retirada<input name="data" type="date" required value="${Utils.todayIso()}"></label><label class="field">Responsável pela solicitação<input name="responsavel" required></label><label class="field full">Observação<input name="observacao" placeholder="Opcional"></label><div class="form-actions full"><button class="btn btn-primary" type="submit">Confirmar retirada</button></div></form>`;
   }
 
@@ -71,7 +71,7 @@ const WarehouseScreens = (function () {
         const syncRemove = () => items.querySelectorAll('[data-remove-item]').forEach(button => { button.disabled = items.querySelectorAll('.withdrawal-item-row').length === 1; });
         add.addEventListener('click', () => {
           const row = document.createElement('div');
-          row.className = 'withdrawal-item-row';
+          row.className = 'withdrawal-item-row form-grid';
           row.innerHTML = `<select name="pecaId" required>${options}</select><input name="quantidade" inputmode="decimal" required placeholder="Quantidade"><button type="button" class="btn btn-ghost" data-remove-item>Remover</button>`;
           items.appendChild(row); syncRemove();
         });
