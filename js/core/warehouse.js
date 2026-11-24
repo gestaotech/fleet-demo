@@ -289,7 +289,7 @@ const Warehouse = (function () {
         id: Utils.nextId('MOV', state.movimentacoes.concat(movements), 3),
         tipo: 'Saida', pecaId: part.id, quantidade: quantity, valorUnitario: part.valorUnitario,
         data: data.data, veiculoId: vehicle.id, manutencaoId: maintenance ? maintenance.id : null,
-        responsavel, observacao: Utils.normalizeText(data.observacao),
+        responsavel: responsible, observacao: Utils.normalizeText(data.observacao),
       });
     }
     state.movimentacoes.push(...movements);
@@ -334,7 +334,7 @@ const Warehouse = (function () {
     if (!Utils.isValidDate(data.previsaoDevolucao)) errors.push('Informe a previsão de devolução.');
     if (Utils.isValidDate(data.dataRetirada) && Utils.isValidDate(data.previsaoDevolucao) && data.previsaoDevolucao < data.dataRetirada) errors.push('A previsão de devolução não pode ser anterior à retirada.');
     if (errors.length) return { ok: false, errors };
-    const loan = { id: Utils.nextId('RET-FER', state.retiradasFerramentas, 3), ferramentaId: tool.id, responsavel, finalidade: Utils.normalizeText(data.finalidade), dataRetirada: data.dataRetirada, previsaoDevolucao: data.previsaoDevolucao, devolvidaEm: null, condicaoDevolucao: '', observacao: Utils.normalizeText(data.observacao) };
+    const loan = { id: Utils.nextId('RET-FER', state.retiradasFerramentas, 3), ferramentaId: tool.id, responsavel: responsible, finalidade: Utils.normalizeText(data.finalidade), dataRetirada: data.dataRetirada, previsaoDevolucao: data.previsaoDevolucao, devolvidaEm: null, condicaoDevolucao: '', observacao: Utils.normalizeText(data.observacao) };
     state.retiradasFerramentas.push(loan);
     return { ok: true, value: loan };
   }
