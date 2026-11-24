@@ -47,58 +47,57 @@ const WarehouseScreens = (function () {
 
 
 
-  /* opts.maintenance: quando informado, veículo e manutenção ficam fixos (uso pelo módulo Manutenção). */
+  /* Retirada avulsa aceita várias peças na mesma operação; manutenção mantém o fluxo legado. */
   function withdrawalFormHtml(state, opts = {}) {
     const fixed = opts.maintenance || null;
     const vehicleField = fixed
-      ? `<input type="hidden" name="veiculoId" value="${esc(fixed.veiculoId)}">
-         <input type="hidden" name="manutencaoId" value="${esc(fixed.id)}">
-         <div class="field"><span>Veículo</span><strong>${esc((Vehicles.find(state, fixed.veiculoId) || {}).placa || fixed.veiculoId)}</strong></div>
-         <div class="field"><span>Manutenção</span><strong>${esc(fixed.id)}</strong></div>`
-      : `<label class="field">Veículo de destino (digite a placa)${UI.searchField('vehicle', state, { id: 'withdrawal-veiculo', name: 'veiculoId', placeholder: 'Ex.: DEM1A01', required: true, apenasAtivos: true })}</label>
-         <label class="field">Manutenção vinculada (opcional)
-           <select name="manutencaoId"><option value="">Retirada direta, sem manutenção</option>${openMaintenanceOptions(state)}</select>
-         </label>`;
-    return `
-      <form class="card form-grid" data-form="withdrawal" novalidate>
-        <div class="form-errors full"></div>
-        <label class="field full">Peça retirada (digite código ou descrição)${UI.searchField('part', state, { id: 'withdrawal-peca', name: 'pecaId', placeholder: 'Ex.: FLT-1001 ou filtro', required: true })}</label>
-        ${vehicleField}
-        <label class="field">Quantidade (use fração, como 1/2)<input name="quantidade" inputmode="decimal" required placeholder="Ex.: 1 ou 1/2"></label>
-        <label class="field">Data da retirada<input name="data" type="date" required value="${Utils.todayIso()}"></label>
-        <label class="field">Responsável pela solicitação<input name="responsavel" required></label>
-        <label class="field">Observação<input name="observacao" placeholder="Opcional"></label>
-        <div class="form-actions full">
-          <button class="btn btn-primary" type="submit">Confirmar retirada</button>
-        </div>
-      </form>`;
+      ? `<input type="hidden" name="veiculoId" value="${esc(fixed.veiculoId)}"><input type="hidden" name="manutencaoId" value="${esc(fixed.id)}"><div class="field"><span>Veículo</span><strong>${esc((Vehicles.find(state, fixed.veiculoId) || {}).placa || fixed.veiculoId)}</strong></div><div class="field"><span>Manutenção</span><strong>${esc(fixed.id)}</strong></div>`
+      : `<label class="field">Veículo de destino (digite a placa)${UI.searchField('vehicle', state, { id: 'withdrawal-veiculo', name: 'veiculoId', placeholder: 'Ex.: DEM1A01', required: true, apenasAtivos: true })}</label><label class="field">Manutenção vinculada (opcional)<select name="manutencaoId"><option value="">Retirada direta, sem manutenção</option>${openMaintenanceOptions(state)}</select></label>`;
+    const partOptions = state.pecas.map(part => `<option value="${esc(part.id)}">${esc(part.codigo)} — ${esc(part.descricao)} (saldo: ${Utils.formatQuantity(Warehouse.balance(state, part.id))})</option>`).join('');
+    const partField = fixed
+      ? `<label class="field full">Peça retirada (digite código ou descrição)${UI.searchField('part', state, { id: 'withdrawal-peca', name: 'pecaId', placeholder: 'Ex.: FLT-1001 ou filtro', required: true })}</label><label class="field">Quantidade<input name="quantidade" inputmode="decimal" required placeholder="Ex.: 1 ou 1/2"></label>`
+      : `<div class="field full"><span>Peças e quantidades</span><div id="withdrawal-items" class="form-grid"><div class="withdrawal-item-row"><select name="pecaId" required><option value="">Selecione uma peça</option>${partOptions}</select><input name="quantidade" inputmode="decimal" required placeholder="Quantidade"><button type="button" class="btn btn-ghost" data-remove-item aria-label="Remover peça" disabled>Remover</button></div></div><button type="button" class="btn btn-ghost" id="add-withdrawal-item">Adicionar outra peça</button></div>`;
+    return `<form class="card form-grid" data-form="withdrawal" novalidate><div class="form-errors full"></div>${partField}${vehicleField}<label class="field">Data da retirada<input name="data" type="date" required value="${Utils.todayIso()}"></label><label class="field">Responsável pela solicitação<input name="responsavel" required></label><label class="field full">Observação<input name="observacao" placeholder="Opcional"></label><div class="form-actions full"><button class="btn btn-primary" type="submit">Confirmar retirada</button></div></form>`;
   }
 
-  /* Liga o formulário de retirada. onDone recebe a movimentação registrada. */
   function bindWithdrawalForm(form, state, ctx, opts = {}, onDone) {
     const syncSearch = UI.bindSearchFields(form, state);
-    if (!opts.maintenance) bindVehicleMaintenanceFilter(form);
+    if (!opts.maintenance) {
+      bindVehicleMaintenanceFilter(form);
+      const items = form.querySelector('#withdrawal-items');
+      const add = form.querySelector('#add-withdrawal-item');
+      if (items && add) {
+        const options = items.querySelector('select').innerHTML;
+        const syncRemove = () => items.querySelectorAll('[data-remove-item]').forEach(button => { button.disabled = items.querySelectorAll('.withdrawal-item-row').length === 1; });
+        add.addEventListener('click', () => {
+          const row = document.createElement('div');
+          row.className = 'withdrawal-item-row';
+          row.innerHTML = `<select name="pecaId" required>${options}</select><input name="quantidade" inputmode="decimal" required placeholder="Quantidade"><button type="button" class="btn btn-ghost" data-remove-item>Remover</button>`;
+          items.appendChild(row); syncRemove();
+        });
+        items.addEventListener('click', event => {
+          const button = event.target.closest('[data-remove-item]');
+          if (button && !button.disabled) { button.closest('.withdrawal-item-row').remove(); syncRemove(); }
+        });
+      }
+    }
     form.addEventListener('submit', event => {
       event.preventDefault();
       if (form.dataset.sending === 'true') return;
       form.dataset.sending = 'true';
-      const button = form.querySelector('button[type="submit"]');
-      button.disabled = true;
+      const button = form.querySelector('button[type="submit"]'); button.disabled = true;
       syncSearch();
       const data = readForm(form);
       const result = opts.maintenance
         ? Maintenance.registerWithdrawal(ctx.state, opts.maintenance.id, data)
-        : Warehouse.registerWithdrawal(ctx.state, data);
+        : Warehouse.registerWithdrawals(ctx.state, { ...data, itens: [...form.querySelectorAll('.withdrawal-item-row')].map(row => ({ pecaId: row.querySelector('[name="pecaId"]').value, quantidade: row.querySelector('[name="quantidade"]').value })) });
       if (!result.ok) {
-        UI.showErrors(form.querySelector('.form-errors'), result.errors);
-        form.dataset.sending = '';
-        button.disabled = false;
-        return;
+        UI.showErrors(form.querySelector('.form-errors'), result.errors); form.dataset.sending = ''; button.disabled = false; return;
       }
       ctx.save().then(ok => {
-        if (!ok) return;
+        if (!ok) { form.dataset.sending = ''; button.disabled = false; return; }
         ctx.toast('Retirada confirmada e saldo atualizado.');
-        onDone(result.value);
+        onDone(Array.isArray(result.value) ? result.value : result.value);
       });
     });
   }
@@ -461,6 +460,54 @@ const WarehouseScreens = (function () {
     renderList();
   }
 
+  function toolsScreen(main, params, ctx) {
+    ctx.state.ferramentas = Array.isArray(ctx.state.ferramentas) ? ctx.state.ferramentas : [];
+    ctx.state.retiradasFerramentas = Array.isArray(ctx.state.retiradasFerramentas) ? ctx.state.retiradasFerramentas : [];
+    const render = () => {
+      const rows = Warehouse.listTools(ctx.state);
+      const available = rows.filter(tool => tool.situacao === 'Disponível');
+      main.querySelector('#tools-list').innerHTML = table(
+        [{ label: 'Código' }, { label: 'Ferramenta' }, { label: 'Patrimônio' }, { label: 'Situação' }, { label: 'Responsável atual' }, { label: 'Previsão de devolução' }],
+        rows.map(tool => [esc(tool.codigo), esc(tool.descricao), esc(tool.patrimonio || '—'), tool.situacao === 'Disponível' ? UI.badge('Disponível', 'ok') : (tool.situacao === 'Emprestada' ? UI.badge('Emprestada', 'warn') : UI.badge('Inativa', 'muted')), esc(tool.activeLoan ? tool.activeLoan.responsavel : '—'), tool.activeLoan ? Utils.formatDate(tool.activeLoan.previsaoDevolucao) : '—']),
+        'Nenhuma ferramenta cadastrada.'
+      );
+      main.querySelector('#tool-loan-select').innerHTML = '<option value="">Selecione uma ferramenta</option>' + available.map(tool => `<option value="${esc(tool.id)}">${esc(tool.codigo)} — ${esc(tool.descricao)}</option>`).join('');
+      main.querySelector('#tool-loans').innerHTML = table(
+        [{ label: 'Ferramenta' }, { label: 'Responsável' }, { label: 'Finalidade' }, { label: 'Retirada' }, { label: 'Previsão' }, { label: 'Devolução' }],
+        ctx.state.retiradasFerramentas.slice().sort((a,b) => b.dataRetirada.localeCompare(a.dataRetirada)).map(loan => {
+          const tool = ctx.state.ferramentas.find(item => item.id === loan.ferramentaId);
+          const returned = Boolean(loan.devolvidaEm);
+          const action = returned ? `${Utils.formatDate(loan.devolvidaEm)} — ${esc(loan.condicaoDevolucao)}` : `<form data-return-loan="${esc(loan.id)}" class="form-grid"><input name="devolvidaEm" type="date" required value="${Utils.todayIso()}"><select name="condicaoDevolucao" required><option value="">Condição na devolução</option><option>Boa</option><option>Com avaria</option><option>Inutilizada</option></select><input name="observacaoDevolucao" placeholder="Observação (opcional)"><button class="btn btn-small btn-primary" type="submit">Registrar devolução</button><div class="form-errors full"></div></form>`;
+          return [esc(tool ? `${tool.codigo} — ${tool.descricao}` : loan.ferramentaId), esc(loan.responsavel), esc(loan.finalidade || '—'), Utils.formatDate(loan.dataRetirada), Utils.formatDate(loan.previsaoDevolucao), action];
+        }), 'Nenhuma retirada de ferramenta registrada.'
+      );
+      main.querySelectorAll('[data-return-loan]').forEach(form => form.addEventListener('submit', event => {
+        event.preventDefault();
+        const result = Warehouse.returnTool(ctx.state, form.dataset.returnLoan, readForm(form));
+        if (!result.ok) { UI.showErrors(form.querySelector('.form-errors'), result.errors); return; }
+        ctx.save().then(ok => { if (ok) { ctx.toast('Devolução registrada.'); ctx.refresh(); } });
+      }));
+    };
+    main.innerHTML = `${pageHeader('Ferramentas', 'Cadastro individual, empréstimos, devoluções e histórico de responsabilidade.')}
+      <section class="card"><h2>Cadastrar ferramenta</h2><form id="tool-create-form" class="form-grid" novalidate><div class="form-errors full"></div><label class="field">Código<input name="codigo" required></label><label class="field">Descrição<input name="descricao" required></label><label class="field">Patrimônio<input name="patrimonio"></label><label class="field full">Observação<input name="observacao"></label><div class="form-actions full"><button class="btn btn-primary" type="submit">Cadastrar ferramenta</button></div></form></section>
+      <section class="card"><h2>Ferramentas cadastradas</h2><div id="tools-list"></div></section>
+      <section class="card"><h2>Retirar ferramenta</h2><form id="tool-loan-form" class="form-grid" novalidate><div class="form-errors full"></div><label class="field full">Ferramenta<select id="tool-loan-select" name="ferramentaId" required></select></label><label class="field">Responsável<input name="responsavel" required></label><label class="field">Finalidade<input name="finalidade" placeholder="Ex.: manutenção do veículo"></label><label class="field">Data da retirada<input name="dataRetirada" type="date" required value="${Utils.todayIso()}"></label><label class="field">Previsão de devolução<input name="previsaoDevolucao" type="date" required value="${Utils.todayIso()}"></label><label class="field full">Observação<input name="observacao"></label><div class="form-actions full"><button class="btn btn-primary" type="submit">Confirmar empréstimo</button></div></form></section>
+      <section class="card"><h2>Histórico de retiradas e devoluções</h2><div id="tool-loans"></div></section>`;
+    main.querySelector('#tool-create-form').addEventListener('submit', event => {
+      event.preventDefault(); const form = event.currentTarget;
+      const result = Warehouse.createTool(ctx.state, readForm(form));
+      if (!result.ok) { UI.showErrors(form.querySelector('.form-errors'), result.errors); return; }
+      ctx.save().then(ok => { if (ok) { ctx.toast('Ferramenta cadastrada.'); ctx.refresh(); } });
+    });
+    main.querySelector('#tool-loan-form').addEventListener('submit', event => {
+      event.preventDefault(); const form = event.currentTarget;
+      const result = Warehouse.loanTool(ctx.state, readForm(form));
+      if (!result.ok) { UI.showErrors(form.querySelector('.form-errors'), result.errors); return; }
+      ctx.save().then(ok => { if (ok) { ctx.toast('Empréstimo de ferramenta registrado.'); ctx.refresh(); } });
+    });
+    render();
+  }
+
   function external(main, params, ctx) {
     main.innerHTML = `
       ${pageHeader('Peças externas', 'Peças utilizadas em veículos que não estavam disponíveis no almoxarifado. Não alteram o saldo do estoque.')}
@@ -719,7 +766,7 @@ const WarehouseScreens = (function () {
 
   return {
     externalSpending, externalSpendingForm,
-    stock, partForm, entryForm, partHistory, withdrawals, external, usedParts,
+    stock, partForm, entryForm, partHistory, withdrawals, tools: toolsScreen, external, usedParts,
     withdrawalFormHtml, bindWithdrawalForm, externalFormHtml, bindExternalForm, openMaintenanceOptions,
   };
 })();
