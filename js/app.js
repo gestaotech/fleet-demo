@@ -93,7 +93,7 @@ const App = (function () {
 
   const HOME_CARDS = [
     { id: 'admin', numero: '1', titulo: 'Administrador', texto: 'Usuários, permissões de acesso, parâmetros e situação da frota.' },
-    { id: 'almoxarifado', numero: '2', titulo: 'Almoxarifado', texto: 'Estoque de peças com pesquisa, entradas, retiradas e peças externas.' },
+    { id: 'almoxarifado', numero: '2', titulo: 'Almoxarifado', texto: 'Estoque de peças, ferramentas, empréstimos, devoluções e peças externas.' },
     { id: 'veiculos', numero: '3', titulo: 'Veículos', texto: 'Cadastro da frota e histórico integrado de cada veículo.' },
     { id: 'manutencao', numero: '4', titulo: 'Manutenção de veículos', texto: 'Manutenções com quilometragem e controle de trocas de óleo.' },
     { id: 'combustivel', numero: '5', titulo: 'Combustível', texto: 'Abastecimentos, preço por litro, gastos e consumo médio.' },
