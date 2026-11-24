@@ -31,6 +31,8 @@ const App = (function () {
     warehouseWithdrawals: WarehouseScreens.withdrawals,
     warehouseExternal: WarehouseScreens.external,
     warehouseUsedParts: WarehouseScreens.usedParts,
+    warehouseExternalSpending: WarehouseScreens.externalSpending,
+    warehouseExternalSpendingForm: WarehouseScreens.externalSpendingForm,
     vehicleList: VehicleScreens.list,
     vehicleForm: VehicleScreens.form,
     vehicleDetail: VehicleScreens.detail,
@@ -66,6 +68,7 @@ const App = (function () {
       { label: 'Retiradas', href: '#/almoxarifado/retiradas' },
       { label: 'Peças externas', href: '#/almoxarifado/externas' },
       { label: 'Peças usadas', href: '#/almoxarifado/usadas' },
+      { label: 'Gastos externos', href: '#/almoxarifado/gastos' },
     ],
     veiculos: [
       { label: 'Frota', href: '#/veiculos' },
