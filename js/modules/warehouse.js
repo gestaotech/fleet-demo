@@ -573,7 +573,152 @@ const WarehouseScreens = (function () {
     renderList();
   }
 
+  /* Gastos externos: compras de peças e insumos que não são de manutenção. Não alteram o estoque. */
+  function spendingFields(state, current) {
+    const v = current || { data: Utils.todayIso(), tipo: 'Insumo', descricao: '', quantidade: '', valorUnitario: '', fornecedor: '', responsavel: '', observacao: '' };
+    const quantidade = v.quantidade === '' || v.quantidade === undefined ? '' : String(v.quantidade).replace('.', ',');
+    const tipos = ExternalSpending.TIPOS.map(t => option(t, t, t === v.tipo)).join('');
+    return `
+      <label class="field">Data da compra<input name="data" type="date" required value="${esc(v.data)}"></label>
+      <label class="field">Tipo<select name="tipo" required>${tipos}</select></label>
+      <label class="field full">Descrição do item<input name="descricao" required value="${esc(v.descricao)}" placeholder="Ex.: Lubrificante para correntes"></label>
+      <label class="field">Quantidade<input name="quantidade" inputmode="decimal" required value="${esc(quantidade)}" placeholder="Ex.: 2 ou 1/2"></label>
+      <label class="field">Valor unitário (R$)<input name="valorUnitario" inputmode="decimal" required value="${esc(moneyInput(v.valorUnitario))}" placeholder="0,00"></label>
+      <label class="field">Fornecedor<input name="fornecedor" required value="${esc(v.fornecedor)}"></label>
+      <label class="field">Responsável pelo registro<input name="responsavel" required value="${esc(v.responsavel)}"></label>
+      <label class="field full">Observação<input name="observacao" value="${esc(v.observacao)}" placeholder="Opcional: nota fiscal, finalidade"></label>
+      <p class="hint full" data-total-hint></p>`;
+  }
+
+  function bindSpendingTotal(formEl) {
+    const hint = formEl.querySelector('[data-total-hint]');
+    const update = () => {
+      const quantidade = Utils.parseQuantidade(formEl.querySelector('[name="quantidade"]').value);
+      const valor = Utils.parseMoney(formEl.querySelector('[name="valorUnitario"]').value);
+      hint.textContent = quantidade > 0 && valor > 0
+        ? `Total: ${money(Utils.round2(quantidade * valor))}`
+        : 'Informe a quantidade e o valor unitário para ver o total.';
+    };
+    formEl.addEventListener('input', update);
+    update();
+  }
+
+  function externalSpending(main, params, ctx) {
+    const today = Utils.todayIso();
+    const monthStart = `${today.slice(0, 8)}01`;
+    main.innerHTML = `
+      ${pageHeader('Gastos externos', 'Compras de peças e insumos que não são de manutenção. O registro não altera o saldo do estoque nem os custos dos veículos.')}
+      <section class="card">
+        <h2>Registrar gasto</h2>
+        <form class="form-grid" id="spending-form" novalidate>
+          <div class="form-errors full" id="form-errors"></div>
+          ${spendingFields(ctx.state)}
+          <div class="form-actions full"><button class="btn btn-primary" type="submit">Registrar gasto</button></div>
+        </form>
+      </section>
+      <section class="card">
+        <h2>Gastos registrados</h2>
+        <div class="filter-bar">
+          <label class="field">De<input type="date" id="g-from" value="${monthStart}"></label>
+          <label class="field">Até<input type="date" id="g-to" value="${today}"></label>
+          <label class="field">Tipo<select id="g-tipo"><option value="Todos">Todos</option><option value="Peça">Peças</option><option value="Insumo">Insumos</option></select></label>
+        </div>
+        <div id="g-list"></div>
+      </section>`;
+
+    const formEl = main.querySelector('#spending-form');
+    bindSpendingTotal(formEl);
+    formEl.addEventListener('submit', event => {
+      event.preventDefault();
+      const result = ExternalSpending.create(ctx.state, readForm(formEl));
+      if (!result.ok) {
+        UI.showErrors(main.querySelector('#form-errors'), result.errors);
+        return;
+      }
+      ctx.save().then(ok => {
+        if (!ok) return;
+        ctx.toast('Gasto externo registrado.');
+        ctx.refresh();
+      });
+    });
+
+    const renderList = () => {
+      const rows = ExternalSpending.list(ctx.state, {
+        from: main.querySelector('#g-from').value,
+        to: main.querySelector('#g-to').value,
+        tipo: main.querySelector('#g-tipo').value,
+      });
+      const resumo = ExternalSpending.summary(rows);
+      main.querySelector('#g-list').innerHTML = table(
+        [{ label: 'Data' }, { label: 'Tipo' }, { label: 'Descrição' }, { label: 'Qtd.', align: 'right' }, { label: 'Valor unit.', align: 'right' },
+          { label: 'Total', align: 'right' }, { label: 'Fornecedor' }, { label: 'Responsável' }, { label: 'Observação' }],
+        rows.map(g => ({
+          cells: [
+            Utils.formatDate(g.data),
+            g.tipo === 'Peça' ? UI.badge('Peça', 'info') : UI.badge('Insumo', 'muted'),
+            esc(g.descricao),
+            Utils.formatQuantity(g.quantidade),
+            money(g.valorUnitario),
+            money(g.valorTotal),
+            esc(g.fornecedor),
+            esc(g.responsavel),
+            esc(g.observacao || '—'),
+          ],
+          footer: `<a class="link" href="#/almoxarifado/gastos/${esc(g.id)}/editar">Editar</a>`,
+        })),
+        'Nenhum gasto externo no período selecionado.',
+      ) + `<p class="totals">Registros: <strong>${resumo.registros}</strong> · Peças: <strong>${money(resumo.porTipo['Peça'])}</strong> · Insumos: <strong>${money(resumo.porTipo.Insumo)}</strong> · Total: <strong>${money(resumo.valorTotal)}</strong></p>`;
+    };
+    ['#g-from', '#g-to', '#g-tipo'].forEach(sel => main.querySelector(sel).addEventListener('change', renderList));
+    renderList();
+  }
+
+  function externalSpendingForm(main, params, ctx) {
+    const editing = ExternalSpending.find(ctx.state, params.id);
+    if (!editing) {
+      main.innerHTML = `${pageHeader('Gasto não encontrado')}<p><a class="link" href="#/almoxarifado/gastos">Voltar aos gastos externos</a></p>`;
+      return;
+    }
+    main.innerHTML = `
+      ${pageHeader(`Editar gasto ${editing.id}`, 'A alteração não toca o estoque nem os custos dos veículos.')}
+      <form class="card form-grid" id="spending-form" novalidate>
+        <div class="form-errors full" id="form-errors"></div>
+        ${spendingFields(ctx.state, editing)}
+        <div class="form-actions full">
+          <button class="btn btn-danger" type="button" id="spending-delete">Excluir gasto</button>
+          <a class="btn btn-ghost" href="#/almoxarifado/gastos">Cancelar</a>
+          <button class="btn btn-primary" type="submit">Salvar alterações</button>
+        </div>
+      </form>`;
+
+    const formEl = main.querySelector('#spending-form');
+    bindSpendingTotal(formEl);
+    formEl.addEventListener('submit', event => {
+      event.preventDefault();
+      const result = ExternalSpending.update(ctx.state, editing.id, readForm(formEl));
+      if (!result.ok) {
+        UI.showErrors(main.querySelector('#form-errors'), result.errors);
+        return;
+      }
+      ctx.save().then(ok => {
+        if (!ok) return;
+        ctx.toast('Gasto atualizado.');
+        ctx.go('#/almoxarifado/gastos');
+      });
+    });
+    main.querySelector('#spending-delete').addEventListener('click', () => {
+      if (!UI.confirmAction(`Excluir o gasto ${editing.id} (${editing.descricao})? Esta ação não pode ser desfeita.`)) return;
+      ExternalSpending.remove(ctx.state, editing.id);
+      ctx.save().then(ok => {
+        if (!ok) return;
+        ctx.toast('Gasto excluído.');
+        ctx.go('#/almoxarifado/gastos');
+      });
+    });
+  }
+
   return {
+    externalSpending, externalSpendingForm,
     stock, partForm, entryForm, partHistory, withdrawals, external, usedParts,
     withdrawalFormHtml, bindWithdrawalForm, externalFormHtml, bindExternalForm, openMaintenanceOptions,
   };
