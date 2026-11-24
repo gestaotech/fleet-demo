@@ -18,7 +18,7 @@ const Router = (function () {
     { path: '/almoxarifado/estoque/entrada', page: 'entryForm' },
     { path: '/almoxarifado/estoque/:id/editar', page: 'partForm' },
     { path: '/almoxarifado/estoque/:id', page: 'partHistory' },
-    { path: '/almoxarifado/retiradas', page: 'warehouseWithdrawals' },
+    { path: '/almoxarifado/retiradas', page: 'warehouseWithdrawals' },\n    { path: '/almoxarifado/ferramentas', page: 'warehouseTools' },
     { path: '/almoxarifado/externas', page: 'warehouseExternal' },
     { path: '/almoxarifado/usadas', page: 'warehouseUsedParts' },
     { path: '/almoxarifado/gastos', page: 'warehouseExternalSpending' },
