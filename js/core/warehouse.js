@@ -9,11 +9,18 @@ const Warehouse = (function () {
     return state.pecas.find(p => p.id === id) || null;
   }
 
+  /* Entrada soma; Saida subtrai; Ajuste já traz o sinal (positivo ou negativo) da correção. */
+  function variacao(m) {
+    if (m.tipo === 'Entrada') return m.quantidade;
+    if (m.tipo === 'Saida') return -m.quantidade;
+    return m.quantidade;
+  }
+
   function balance(state, pecaId) {
-    return state.movimentacoes.reduce((acc, m) => {
+    return Utils.round3(state.movimentacoes.reduce((acc, m) => {
       if (m.pecaId !== pecaId) return acc;
-      return acc + (m.tipo === 'Entrada' ? m.quantidade : -m.quantidade);
-    }, 0);
+      return acc + variacao(m);
+    }, 0));
   }
 
   function isLowStock(part, saldo) {
@@ -120,6 +127,47 @@ const Warehouse = (function () {
     return { ok: true, value: part };
   }
 
+  /*
+   * Ajuste de saldo (somente administrador; a senha é confirmada no servidor antes de gravar).
+   * Não é retirada nem entrada: não tem veículo, não entra em custos e fica no histórico com o motivo.
+   */
+  function validateAdjustment(state, data) {
+    const errors = [];
+    const part = findPart(state, data.pecaId);
+    const novaQuantidade = Utils.parseQuantidade(data.novaQuantidade);
+    const motivo = Utils.normalizeText(data.motivoAjuste);
+    let delta = 0;
+
+    if (!part) errors.push('Peça não encontrada para o ajuste.');
+    if (!Number.isFinite(novaQuantidade) || novaQuantidade < 0) errors.push('Informe a nova quantidade em estoque (zero ou maior).');
+    if (!motivo) errors.push('Informe o motivo do ajuste.');
+    if (part && Number.isFinite(novaQuantidade)) {
+      delta = Utils.round3(novaQuantidade - balance(state, part.id));
+      if (delta === 0) errors.push('A nova quantidade é igual à atual: não há ajuste a registrar.');
+    }
+    return { errors, value: { part, delta, motivo } };
+  }
+
+  function addAdjustment(state, data, responsavel) {
+    const checked = validateAdjustment(state, data);
+    if (checked.errors.length) return { ok: false, errors: checked.errors };
+    const { part, delta, motivo } = checked.value;
+    const movement = {
+      id: Utils.nextId('MOV', state.movimentacoes, 3),
+      tipo: 'Ajuste',
+      pecaId: part.id,
+      quantidade: delta,
+      valorUnitario: part.valorUnitario,
+      data: Utils.todayIso(),
+      veiculoId: null,
+      manutencaoId: null,
+      responsavel: Utils.normalizeText(responsavel),
+      observacao: motivo,
+    };
+    state.movimentacoes.push(movement);
+    return { ok: true, value: movement };
+  }
+
   function validateEntry(state, data) {
     const errors = [];
     const part = findPart(state, data.pecaId);
@@ -159,7 +207,7 @@ const Warehouse = (function () {
     const errors = [];
     const part = findPart(state, data.pecaId);
     const veiculo = Vehicles.find(state, data.veiculoId);
-    const quantidade = Utils.parseInteger(data.quantidade);
+    const quantidade = Utils.parseQuantidade(data.quantidade);
     const responsavel = Utils.normalizeText(data.responsavel);
     const manutencao = data.manutencaoId ? Maintenance.find(state, data.manutencaoId) : null;
 
@@ -169,8 +217,8 @@ const Warehouse = (function () {
     if (data.manutencaoId && !manutencao) errors.push('A manutenção informada não foi encontrada.');
     else if (manutencao && !Maintenance.isOpen(manutencao)) errors.push('A manutenção informada não está aberta.');
     else if (manutencao && veiculo && manutencao.veiculoId !== veiculo.id) errors.push('A manutenção informada pertence a outro veículo.');
-    if (!Number.isInteger(quantidade) || quantidade <= 0) {
-      errors.push('Informe uma quantidade maior que zero.');
+    if (!Number.isFinite(quantidade) || quantidade <= 0) {
+      errors.push('Informe uma quantidade maior que zero (use fração, como 1/2, se necessário).');
     } else if (part) {
       const saldo = balance(state, part.id);
       if (quantidade > saldo) {
@@ -249,7 +297,7 @@ const Warehouse = (function () {
       .map(item => item.m);
     let saldo = 0;
     return ordered.map(m => {
-      saldo += m.tipo === 'Entrada' ? m.quantidade : -m.quantidade;
+      saldo = Utils.round3(saldo + variacao(m));
       return { ...m, saldoApos: saldo };
     });
   }
@@ -283,7 +331,7 @@ const Warehouse = (function () {
 
   return {
     findPart, balance, isLowStock, inventory, filterInventory,
-    validatePart, createPart, updatePart, deletePart, addEntry,
+    validatePart, createPart, updatePart, deletePart, addEntry, validateAdjustment, addAdjustment,
     validateWithdrawal, registerWithdrawal, registerExternalPart,
     movementsOf, withdrawals, externalParts,
   };

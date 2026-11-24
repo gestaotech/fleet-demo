@@ -5,6 +5,7 @@
  * GET /api/v1/veiculos/crlv/:id?arquivo=1 -> o próprio PDF, para visualizar.
  * GET /api/v1/veiculos/crlv/:id?arquivo=1&download=1 -> o mesmo PDF, como download (cópia para outro dispositivo).
  * PUT /api/v1/veiculos/crlv/:id           -> envia ou substitui o CRLV. Corpo: { nomeArquivo, conteudoBase64 }.
+ * DELETE /api/v1/veiculos/crlv/:id        -> remove o CRLV (usado ao excluir o veículo).
  *
  * Leitura: qualquer usuário com acesso ao sistema. Escrita: módulo "veiculos".
  * O veículo precisa existir no estado operacional da empresa da sessão.
@@ -42,6 +43,11 @@ const SQL_LER_ARQUIVO = `
   SELECT nome_arquivo, conteudo
     FROM vehicle_documents
    WHERE company_id = $1::uuid AND veiculo_id = $2::text AND tipo = 'CRLV'`;
+
+const SQL_EXCLUIR = `
+  DELETE FROM vehicle_documents
+   WHERE company_id = $1::uuid AND veiculo_id = $2::text AND tipo = 'CRLV'
+  RETURNING 1 AS removido`;
 
 const SQL_GRAVAR = `
   INSERT INTO vehicle_documents (company_id, veiculo_id, tipo, nome_arquivo, tamanho_bytes, conteudo, enviado_por, enviado_em)
@@ -138,14 +144,34 @@ async function responderEnvio(req, res, sessao, id) {
   });
 }
 
+async function responderExclusao(req, res, sessao, id) {
+  exigirPermissao(sessao, "veiculos");
+  const removidos = await executarDocumento(() => consultar(SQL_EXCLUIR, [sessao.empresa.id, id]));
+  if (removidos.length) {
+    await registrarAuditoria({
+      acao: "CRLV_EXCLUIDO",
+      entidade: "vehicle_documents",
+      entidadeId: id,
+      resultado: "SUCCESS",
+      usuarioId: sessao.usuario.id,
+      empresaId: sessao.empresa.id,
+      metadados: { veiculoId: id },
+      ipHash: hashIp(req),
+      userAgent: userAgent(req),
+    });
+  }
+  enviarDados(res, 200, { veiculoId: id, removido: removidos.length > 0 });
+}
+
 async function handler(req, res) {
-  exigirMetodo(req, ["GET", "PUT"]);
-  if (req.method === "PUT") protegerAlteracao(req);
+  exigirMetodo(req, ["GET", "PUT", "DELETE"]);
+  if (req.method !== "GET") protegerAlteracao(req);
 
   const sessao = await exigirSessao(req);
   const id = identificadorVeiculo(req);
 
   if (req.method === "PUT") return responderEnvio(req, res, sessao, id);
+  if (req.method === "DELETE") return responderExclusao(req, res, sessao, id);
   exigirAlgumaPermissao(sessao);
   if (req.query && req.query.arquivo === "1") return responderArquivo(req, res, sessao, id);
   return responderMetadados(res, sessao, id);

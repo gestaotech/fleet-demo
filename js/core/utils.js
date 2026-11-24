@@ -74,6 +74,21 @@ const Utils = (function () {
   }
 
   /* Quantidades com até 3 casas (litros, por exemplo), aceitando vírgula ou ponto decimal. */
+  function round3(value) {
+    return Math.round((Number(value) + Number.EPSILON) * 1000) / 1000;
+  }
+
+  /* Quantidade com fração ("1/2", "2 1/2") ou decimal ("1,5"), com até 3 casas decimais. */
+  function parseQuantidade(text) {
+    if (typeof text === 'number') return parseDecimal(text);
+    const t = String(text ?? '').trim();
+    const mista = /^(\d+)\s+(\d+)\/(\d+)$/.exec(t);
+    if (mista) return Number(mista[3]) > 0 ? round3(Number(mista[1]) + Number(mista[2]) / Number(mista[3])) : NaN;
+    const fracao = /^(\d+)\/(\d+)$/.exec(t);
+    if (fracao) return Number(fracao[2]) > 0 ? round3(Number(fracao[1]) / Number(fracao[2])) : NaN;
+    return parseDecimal(t);
+  }
+
   function parseDecimal(text) {
     if (typeof text === 'number') return Number.isFinite(text) && text >= 0 ? round2(text) : NaN;
     let t = String(text ?? '').trim().replace(/\s/g, '');
@@ -170,7 +185,7 @@ const Utils = (function () {
   return {
     todayIso, nowIso, isValidDate, isValidDateTime, round2,
     formatMoney, formatDate, formatDateTime, formatQuantity, formatKm,
-    parseMoney, parseInteger, parseDecimal, nextId,
+    parseMoney, parseInteger, parseDecimal, parseQuantidade, round3, nextId,
     addMonths, daysBetween,
     normalizeText, normalizePlate, sameText, searchKey, inPeriod, sum, csvNumber,
   };

@@ -164,6 +164,7 @@ const VehicleScreens = (function () {
           <span class="hint" data-crlv-status>${editing ? 'Carregando…' : 'Opcional. Se anexado, fica disponível nos detalhes do veículo.'}</span>
         </label>
         <div class="form-actions full">
+          ${editing ? '<button class="btn btn-danger" type="button" id="vehicle-delete">Excluir veículo</button>' : ''}
           <a class="btn btn-ghost" href="${editing ? `#/veiculos/${esc(editing.id)}` : '#/veiculos'}">Cancelar</a>
           <button class="btn btn-primary" type="submit">${editing ? 'Salvar alterações' : 'Cadastrar veículo'}</button>
         </div>
@@ -205,6 +206,23 @@ const VehicleScreens = (function () {
         ctx.go(`#/veiculos/${veiculoId}`);
       });
     });
+
+    if (editing) {
+      formEl.querySelector('#vehicle-delete').addEventListener('click', () => {
+        if (!UI.confirmAction(`Excluir o veículo ${editing.placa}? Esta ação não pode ser desfeita.`)) return;
+        const result = Vehicles.remove(ctx.state, editing.id);
+        if (!result.ok) {
+          UI.showErrors(main.querySelector('#form-errors'), result.errors);
+          return;
+        }
+        ctx.save().then(async ok => {
+          if (!ok) return;
+          await Api.request('DELETE', `/veiculos/crlv/${encodeURIComponent(editing.id)}`);
+          ctx.toast('Veículo excluído.');
+          ctx.go('#/veiculos');
+        });
+      });
+    }
   }
 
   function detail(main, params, ctx) {
