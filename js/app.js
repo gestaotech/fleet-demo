@@ -28,7 +28,7 @@ const App = (function () {
     partForm: WarehouseScreens.partForm,
     entryForm: WarehouseScreens.entryForm,
     partHistory: WarehouseScreens.partHistory,
-    warehouseWithdrawals: WarehouseScreens.withdrawals,
+    warehouseWithdrawals: WarehouseScreens.withdrawals,\n    warehouseTools: WarehouseScreens.tools,
     warehouseExternal: WarehouseScreens.external,
     warehouseUsedParts: WarehouseScreens.usedParts,
     warehouseExternalSpending: WarehouseScreens.externalSpending,
@@ -65,7 +65,7 @@ const App = (function () {
     ],
     almoxarifado: [
       { label: 'Estoque de peças', href: '#/almoxarifado/estoque' },
-      { label: 'Retiradas', href: '#/almoxarifado/retiradas' },
+      { label: 'Retiradas', href: '#/almoxarifado/retiradas' },\n      { label: 'Ferramentas', href: '#/almoxarifado/ferramentas' },
       { label: 'Peças externas', href: '#/almoxarifado/externas' },
       { label: 'Peças usadas', href: '#/almoxarifado/usadas' },
       { label: 'Gastos externos', href: '#/almoxarifado/gastos' },
@@ -468,7 +468,7 @@ const App = (function () {
     // Compatibilidade com estados antigos: coleções do módulo Combustível
     // devem existir mesmo quando o registro foi criado antes dessas funções.
     if (!Array.isArray(state.abastecimentos)) state.abastecimentos = [];
-    if (!Array.isArray(state.entradasCombustivel)) state.entradasCombustivel = [];
+    if (!Array.isArray(state.entradasCombustivel)) state.entradasCombustivel = [];\n    if (!Array.isArray(state.ferramentas)) state.ferramentas = [];\n    if (!Array.isArray(state.retiradasFerramentas)) state.retiradasFerramentas = [];
     revision = resultado.revision;
     loadError = '';
     conflictBlocked = false;
