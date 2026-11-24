@@ -246,6 +246,56 @@ describe("estado operacional: leitura, permissões e concorrência", () => {
     assert.equal(r.json.data.revision, atual.json.data.revision + 1);
   });
 
+  it("coleções de ferramentas exigem permissão de almoxarifado", async () => {
+    const atual = await h.requisitar("GET", "/api/v1/workspace", { cookies: relatorios.cookies });
+    const estado = {
+      ...atual.json.data.state,
+      ferramentas: [{ id: "FER-TESTE", codigo: "F-TESTE", descricao: "Chave combinada", ativa: true }],
+      retiradasFerramentas: [],
+    };
+    const r = await h.requisitar("PUT", "/api/v1/workspace", {
+      cookies: relatorios.cookies,
+      csrf: relatorios.csrf,
+      corpo: { baseRevision: atual.json.data.revision, state: estado },
+    });
+    assert.equal(r.status, 403);
+    assert.equal(r.json.error.code, "SEM_PERMISSAO");
+  });
+
+  it("ferramentas aceitam empréstimo válido e recusam dois empréstimos ativos da mesma unidade", async () => {
+    const atual = await h.requisitar("GET", "/api/v1/workspace", { cookies: admin.cookies });
+    const ferramenta = { id: "FER-INTEGRACAO", codigo: "FER-INT-01", descricao: "Alicate", ativa: true };
+    const retirada = {
+      id: "RET-FER-INTEGRACAO", ferramentaId: ferramenta.id, responsavel: "Teste",
+      dataRetirada: "2026-11-24", previsaoDevolucao: "2026-11-25",
+      devolvidaEm: null, condicaoDevolucao: "",
+    };
+    const valido = {
+      ...atual.json.data.state,
+      ferramentas: [...(atual.json.data.state.ferramentas || []), ferramenta],
+      retiradasFerramentas: [...(atual.json.data.state.retiradasFerramentas || []), retirada],
+    };
+    const salvo = await h.requisitar("PUT", "/api/v1/workspace", {
+      cookies: admin.cookies, csrf: admin.csrf,
+      corpo: { baseRevision: atual.json.data.revision, state: valido },
+    });
+    assert.equal(salvo.status, 200);
+
+    const atualizado = await h.requisitar("GET", "/api/v1/workspace", { cookies: admin.cookies });
+    const duplicado = {
+      ...atualizado.json.data.state,
+      retiradasFerramentas: [...atualizado.json.data.state.retiradasFerramentas, {
+        ...retirada, id: "RET-FER-DUPLICADA",
+      }],
+    };
+    const recusado = await h.requisitar("PUT", "/api/v1/workspace", {
+      cookies: admin.cookies, csrf: admin.csrf,
+      corpo: { baseRevision: atualizado.json.data.revision, state: duplicado },
+    });
+    assert.equal(recusado.status, 422);
+    assert.match(recusado.json.error.message, /mais de um empréstimo ativo/);
+  });
+
   it("gravação com revisão antiga é recusada com 409 e informa a revisão atual", async () => {
     const r = await h.requisitar("PUT", "/api/v1/workspace", {
       cookies: combustivel.cookies,

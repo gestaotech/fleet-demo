@@ -251,6 +251,108 @@ const Warehouse = (function () {
     return { ok: true, value: movement };
   }
 
+  function registerWithdrawals(state, data) {
+    const items = Array.isArray(data.itens) ? data.itens : [];
+    const errors = [];
+    const vehicle = Vehicles.find(state, data.veiculoId);
+    const maintenance = data.manutencaoId ? Maintenance.find(state, data.manutencaoId) : null;
+    const responsible = Utils.normalizeText(data.responsavel);
+    const prepared = [];
+    const totals = new Map();
+    if (!vehicle) errors.push('Informe o veículo de destino.');
+    else if (!Vehicles.isActive(vehicle)) errors.push('Veículo inativo não pode receber peças do almoxarifado.');
+    if (data.manutencaoId && !maintenance) errors.push('A manutenção informada não foi encontrada.');
+    else if (maintenance && !Maintenance.isOpen(maintenance)) errors.push('A manutenção informada não está aberta.');
+    else if (maintenance && vehicle && maintenance.veiculoId !== vehicle.id) errors.push('A manutenção informada pertence a outro veículo.');
+    if (!responsible) errors.push('Informe o responsável pela solicitação.');
+    if (!Utils.isValidDate(data.data)) errors.push('Informe a data da retirada.');
+    if (!items.length) errors.push('Adicione ao menos uma peça à retirada.');
+    items.forEach((item, index) => {
+      const part = findPart(state, item.pecaId);
+      const quantity = Utils.parseQuantidade(item.quantidade);
+      if (!part) errors.push(`Selecione uma peça na linha ${index + 1}.`);
+      if (!Number.isFinite(quantity) || quantity <= 0) errors.push(`Informe uma quantidade válida na linha ${index + 1}.`);
+      if (part && Number.isFinite(quantity) && quantity > 0) {
+        totals.set(part.id, (totals.get(part.id) || 0) + quantity);
+        prepared.push({ part, quantity });
+      }
+    });
+    for (const [partId, quantity] of totals) {
+      const part = findPart(state, partId);
+      const available = balance(state, partId);
+      if (quantity > available) errors.push(`Saldo insuficiente para ${part.descricao}: disponível ${available}, solicitado ${quantity}.`);
+    }
+    if (errors.length) return { ok: false, errors };
+    const movements = [];
+    for (const { part, quantity } of prepared) {
+      movements.push({
+        id: Utils.nextId('MOV', state.movimentacoes.concat(movements), 3),
+        tipo: 'Saida', pecaId: part.id, quantidade: quantity, valorUnitario: part.valorUnitario,
+        data: data.data, veiculoId: vehicle.id, manutencaoId: maintenance ? maintenance.id : null,
+        responsavel, observacao: Utils.normalizeText(data.observacao),
+      });
+    }
+    state.movimentacoes.push(...movements);
+    return { ok: true, value: movements };
+  }
+
+  function listTools(state) {
+    const toolsList = Array.isArray(state.ferramentas) ? state.ferramentas : [];
+    const loans = Array.isArray(state.retiradasFerramentas) ? state.retiradasFerramentas : [];
+    return toolsList.map(tool => {
+      const activeLoan = loans.find(loan => loan.ferramentaId === tool.id && !loan.devolvidaEm) || null;
+      return { ...tool, activeLoan, situacao: activeLoan ? 'Emprestada' : (tool.ativa === false ? 'Inativa' : 'Disponível') };
+    });
+  }
+
+  function createTool(state, data) {
+    state.ferramentas = Array.isArray(state.ferramentas) ? state.ferramentas : [];
+    const codigo = Utils.normalizeText(data.codigo);
+    const descricao = Utils.normalizeText(data.descricao);
+    const patrimonio = Utils.normalizeText(data.patrimonio);
+    const errors = [];
+    if (!codigo) errors.push('Informe o código da ferramenta.');
+    if (!descricao) errors.push('Informe a descrição da ferramenta.');
+    if (state.ferramentas.some(tool => Utils.sameText(tool.codigo, codigo))) errors.push('Já existe uma ferramenta com este código.');
+    if (patrimonio && state.ferramentas.some(tool => tool.patrimonio && Utils.sameText(tool.patrimonio, patrimonio))) errors.push('Já existe uma ferramenta com este patrimônio.');
+    if (errors.length) return { ok: false, errors };
+    const tool = { id: Utils.nextId('FER', state.ferramentas, 3), codigo, descricao, patrimonio, observacao: Utils.normalizeText(data.observacao), ativa: true, criadaEm: Utils.todayIso() };
+    state.ferramentas.push(tool);
+    return { ok: true, value: tool };
+  }
+
+  function loanTool(state, data) {
+    state.ferramentas = Array.isArray(state.ferramentas) ? state.ferramentas : [];
+    state.retiradasFerramentas = Array.isArray(state.retiradasFerramentas) ? state.retiradasFerramentas : [];
+    const tool = state.ferramentas.find(item => item.id === data.ferramentaId);
+    const responsible = Utils.normalizeText(data.responsavel);
+    const errors = [];
+    if (!tool || tool.ativa === false) errors.push('Selecione uma ferramenta ativa.');
+    if (tool && state.retiradasFerramentas.some(loan => loan.ferramentaId === tool.id && !loan.devolvidaEm)) errors.push('Esta ferramenta já está emprestada.');
+    if (!responsible) errors.push('Informe o responsável pela retirada.');
+    if (!Utils.isValidDate(data.dataRetirada)) errors.push('Informe a data da retirada.');
+    if (!Utils.isValidDate(data.previsaoDevolucao)) errors.push('Informe a previsão de devolução.');
+    if (Utils.isValidDate(data.dataRetirada) && Utils.isValidDate(data.previsaoDevolucao) && data.previsaoDevolucao < data.dataRetirada) errors.push('A previsão de devolução não pode ser anterior à retirada.');
+    if (errors.length) return { ok: false, errors };
+    const loan = { id: Utils.nextId('RET-FER', state.retiradasFerramentas, 3), ferramentaId: tool.id, responsavel, finalidade: Utils.normalizeText(data.finalidade), dataRetirada: data.dataRetirada, previsaoDevolucao: data.previsaoDevolucao, devolvidaEm: null, condicaoDevolucao: '', observacao: Utils.normalizeText(data.observacao) };
+    state.retiradasFerramentas.push(loan);
+    return { ok: true, value: loan };
+  }
+
+  function returnTool(state, loanId, data) {
+    const loan = (state.retiradasFerramentas || []).find(item => item.id === loanId);
+    if (!loan) return { ok: false, errors: ['Retirada de ferramenta não encontrada.'] };
+    if (loan.devolvidaEm) return { ok: false, errors: ['Esta ferramenta já foi devolvida.'] };
+    if (!Utils.isValidDate(data.devolvidaEm)) return { ok: false, errors: ['Informe a data da devolução.'] };
+    const condition = Utils.normalizeText(data.condicaoDevolucao);
+    if (!condition) return { ok: false, errors: ['Informe a condição da ferramenta na devolução.'] };
+    if (data.devolvidaEm < loan.dataRetirada) return { ok: false, errors: ['A devolução não pode ser anterior à retirada.'] };
+    loan.devolvidaEm = data.devolvidaEm;
+    loan.condicaoDevolucao = condition;
+    loan.observacaoDevolucao = Utils.normalizeText(data.observacaoDevolucao);
+    return { ok: true, value: loan };
+  }
+
   /* Peça de fora do almoxarifado: não altera saldo; entra apenas nos custos do veículo. */
   function registerExternalPart(state, data) {
     const errors = [];
@@ -332,7 +434,7 @@ const Warehouse = (function () {
   return {
     findPart, balance, isLowStock, inventory, filterInventory,
     validatePart, createPart, updatePart, deletePart, addEntry, validateAdjustment, addAdjustment,
-    validateWithdrawal, registerWithdrawal, registerExternalPart,
+    validateWithdrawal, registerWithdrawal, registerWithdrawals, listTools, createTool, loanTool, returnTool, registerExternalPart,
     movementsOf, withdrawals, externalParts,
   };
 })();

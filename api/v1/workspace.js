@@ -58,6 +58,8 @@ const ESTADO_VAZIO = JSON.stringify({
   configuracoes: { alertaTrocaOleoKm: 1000, alertaTrocaOleoDias: 30 },
   veiculos: [],
   pecas: [],
+  ferramentas: [],
+  retiradasFerramentas: [],
   movimentacoes: [],
   pecasExternas: [],
   manutencoes: [],
