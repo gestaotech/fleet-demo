@@ -63,6 +63,7 @@ const ESTADO_VAZIO = JSON.stringify({
   manutencoes: [],
   despesas: [],
   abastecimentos: [],
+  entradasCombustivel: [],
   trocasOleo: [],
 });
 
