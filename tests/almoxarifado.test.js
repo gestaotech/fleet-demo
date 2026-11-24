@@ -41,11 +41,20 @@ test('retirada igual ao saldo disponível é aceita e zera o estoque', () => {
 });
 
 test('quantidades inválidas são recusadas', () => {
-  for (const quantidade of ['0', '-1', '1,5', 'abc', '']) {
+  for (const quantidade of ['0', '-1', '0,0001', '1/0', 'abc', '']) {
     const s = app.fresh();
     const result = W().registerWithdrawal(s, retirada({ quantidade }));
     assert.equal(result.ok, false, `quantidade "${quantidade}" deveria ser recusada`);
   }
+});
+
+test('retirada aceita quantidade fracionada (1/2, 2 1/2, 1,5) e desconta do saldo exato', () => {
+  const s = app.fresh();
+  const antes = W().balance(s, 'PEC-001');
+  assert.equal(W().registerWithdrawal(s, retirada({ quantidade: '1/2' })).ok, true);
+  assert.equal(W().registerWithdrawal(s, retirada({ quantidade: '2 1/2' })).ok, true);
+  assert.equal(W().registerWithdrawal(s, retirada({ quantidade: '1,5' })).ok, true);
+  assert.equal(W().balance(s, 'PEC-001'), antes - 4.5);
 });
 
 test('retirada exige peça, veículo ativo, responsável e data válidos', () => {

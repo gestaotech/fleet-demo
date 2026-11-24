@@ -102,6 +102,19 @@ const Vehicles = (function () {
     return { ok: true, value: vehicle };
   }
 
+  /* Veículo com registros de histórico não é excluído: a frota precisa manter custos e quilometragens. */
+  function remove(state, id) {
+    const vehicle = find(state, id);
+    if (!vehicle) return { ok: false, errors: ['Veículo não encontrado.'] };
+    const temHistorico = ['movimentacoes', 'manutencoes', 'pecasExternas', 'abastecimentos', 'trocasOleo']
+      .some(colecao => (state[colecao] || []).some(r => r.veiculoId === id));
+    if (temHistorico) {
+      return { ok: false, errors: ['Este veículo tem registros de histórico e não pode ser excluído. Inative o cadastro para preservá-lo.'] };
+    }
+    state.veiculos.splice(state.veiculos.indexOf(vehicle), 1);
+    return { ok: true, value: vehicle };
+  }
+
   function summary(state) {
     const total = state.veiculos.length;
     const ativos = state.veiculos.filter(v => v.situacao === 'Ativo').length;
@@ -124,5 +137,5 @@ const Vehicles = (function () {
     });
   }
 
-  return { SITUACOES, find, isActive, operationalStatus, currentKm, currentKmSource, validate, create, update, summary, filter };
+  return { SITUACOES, find, isActive, operationalStatus, currentKm, currentKmSource, validate, create, update, remove, summary, filter };
 })();

@@ -45,14 +45,7 @@ const WarehouseScreens = (function () {
     apply();
   }
 
-  function bindPartQuantity(form, state) {
-    const peca = form.querySelector('[name="pecaId"]');
-    const quantidade = form.querySelector('[name="quantidade"]');
-    if (!peca || !quantidade) return;
-    peca.addEventListener('change', () => {
-      if (peca.value) quantidade.max = Warehouse.balance(state, peca.value);
-    });
-  }
+
 
   /* opts.maintenance: quando informado, veículo e manutenção ficam fixos (uso pelo módulo Manutenção). */
   function withdrawalFormHtml(state, opts = {}) {
@@ -71,7 +64,7 @@ const WarehouseScreens = (function () {
         <div class="form-errors full"></div>
         <label class="field full">Peça retirada (digite código ou descrição)${UI.searchField('part', state, { id: 'withdrawal-peca', name: 'pecaId', placeholder: 'Ex.: FLT-1001 ou filtro', required: true })}</label>
         ${vehicleField}
-        <label class="field">Quantidade<input name="quantidade" type="number" min="1" step="1" inputmode="numeric" required></label>
+        <label class="field">Quantidade (use fração, como 1/2)<input name="quantidade" inputmode="decimal" required placeholder="Ex.: 1 ou 1/2"></label>
         <label class="field">Data da retirada<input name="data" type="date" required value="${Utils.todayIso()}"></label>
         <label class="field">Responsável pela solicitação<input name="responsavel" required></label>
         <label class="field">Observação<input name="observacao" placeholder="Opcional"></label>
@@ -85,7 +78,6 @@ const WarehouseScreens = (function () {
   function bindWithdrawalForm(form, state, ctx, opts = {}, onDone) {
     const syncSearch = UI.bindSearchFields(form, state);
     if (!opts.maintenance) bindVehicleMaintenanceFilter(form);
-    bindPartQuantity(form, state);
     form.addEventListener('submit', event => {
       event.preventDefault();
       if (form.dataset.sending === 'true') return;
@@ -224,7 +216,7 @@ const WarehouseScreens = (function () {
             esc(r.codigo),
             esc(r.descricao),
             money(r.valorUnitario),
-            `<strong>${r.saldo}</strong>`,
+            `<strong>${Utils.formatQuantity(r.saldo)}</strong>`,
             String(r.estoqueMinimo),
             Utils.formatDate(r.dataEntrada),
             stockBadge(r),
@@ -256,6 +248,16 @@ const WarehouseScreens = (function () {
       return;
     }
     const current = editing || { codigo: '', descricao: '', valorUnitario: '', estoqueMinimo: 0, dataEntrada: Utils.todayIso() };
+    const podeAjustar = Boolean(editing && ctx.user && ctx.user.permissoes.includes('admin'));
+    const saldoAtual = editing ? Warehouse.balance(ctx.state, editing.id) : 0;
+    const ajusteHtml = podeAjustar ? `
+        <fieldset class="field full ajuste-estoque">
+          <legend>Ajuste de quantidade (somente administrador)</legend>
+          <p class="hint">Saldo atual: <strong>${Utils.formatQuantity(saldoAtual)}</strong>. O ajuste corrige o saldo sem registrar saída: fica no histórico com o motivo e não entra em custos. Deixe a nova quantidade em branco para não ajustar.</p>
+          <label class="field">Nova quantidade em estoque<input name="novaQuantidade" inputmode="decimal" placeholder="Ex.: 3 ou 2 1/2"></label>
+          <label class="field">Motivo do ajuste<input name="motivoAjuste" placeholder="Ex.: contagem de inventário"></label>
+          <label class="field">Sua senha de administrador<input name="senhaAdmin" type="password" autocomplete="current-password"></label>
+        </fieldset>` : '';
     main.innerHTML = `
       ${pageHeader(editing ? `Editar peça ${editing.codigo}` : 'Nova peça', editing
         ? 'Alterar o cadastro não altera o histórico de movimentações nem os valores já registrados.'
@@ -269,6 +271,7 @@ const WarehouseScreens = (function () {
         <label class="field">Data de entrada no cadastro<input name="dataEntrada" type="date" required value="${esc(current.dataEntrada)}"></label>
         ${editing ? '' : `<label class="field">Quantidade inicial em estoque<input name="quantidadeInicial" type="number" min="0" step="1" inputmode="numeric" value="0"></label>`}
         <label class="field full">Observação<textarea name="observacao" rows="2" placeholder="Opcional: fornecedor, aplicação, condições do cadastro">${esc(current.observacao || '')}</textarea></label>
+        ${ajusteHtml}
         <div class="form-actions full">
           ${editing ? '<button class="btn btn-danger" type="button" id="part-delete">Excluir peça</button>' : ''}
           <a class="btn btn-ghost" href="#/almoxarifado/estoque">Cancelar</a>
@@ -276,17 +279,36 @@ const WarehouseScreens = (function () {
         </div>
       </form>`;
 
-    main.querySelector('#part-form').addEventListener('submit', event => {
+    main.querySelector('#part-form').addEventListener('submit', async event => {
       event.preventDefault();
       const data = readForm(event.currentTarget);
+      const novaQuantidade = Utils.parseQuantidade(data.novaQuantidade);
+      const ajustar = podeAjustar && data.novaQuantidade !== '' && novaQuantidade !== Warehouse.balance(ctx.state, editing.id);
+      if (ajustar) {
+        const erros = [
+          ...Warehouse.validatePart(ctx.state, data, editing.id).errors,
+          ...Warehouse.validateAdjustment(ctx.state, data).errors,
+        ];
+        if (!data.senhaAdmin) erros.push('Informe sua senha de administrador para registrar o ajuste.');
+        if (erros.length) {
+          UI.showErrors(main.querySelector('#form-errors'), erros);
+          return;
+        }
+        const confirmacao = await Api.post('/auth/reautenticar', { senha: data.senhaAdmin });
+        if (!confirmacao.ok) {
+          UI.showErrors(main.querySelector('#form-errors'), [confirmacao.error.message]);
+          return;
+        }
+      }
       const result = editing ? Warehouse.updatePart(ctx.state, editing.id, data) : Warehouse.createPart(ctx.state, data);
       if (!result.ok) {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);
         return;
       }
+      if (ajustar) Warehouse.addAdjustment(ctx.state, data, ctx.user.nome);
       ctx.save().then(ok => {
         if (!ok) return;
-        ctx.toast(editing ? 'Peça atualizada.' : 'Peça cadastrada.');
+        ctx.toast(ajustar ? 'Peça atualizada e ajuste de estoque registrado.' : (editing ? 'Peça atualizada.' : 'Peça cadastrada.'));
         ctx.go('#/almoxarifado/estoque');
       });
     });
@@ -371,8 +393,8 @@ const WarehouseScreens = (function () {
             { label: 'Destino / origem' }, { label: 'Responsável' }, { label: 'Saldo após', align: 'right' }, { label: 'Observação' }],
           movements.map(m => [
             Utils.formatDate(m.data),
-            m.tipo === 'Entrada' ? UI.badge('Entrada', 'ok') : UI.badge('Saída', 'warn'),
-            `${m.tipo === 'Entrada' ? '+' : '−'}${m.quantidade}`,
+            m.tipo === 'Entrada' ? UI.badge('Entrada', 'ok') : (m.tipo === 'Ajuste' ? UI.badge('Ajuste', 'info') : UI.badge('Saída', 'warn')),
+            `${m.quantidade >= 0 && m.tipo !== 'Saida' ? '+' : '−'}${Utils.formatQuantity(Math.abs(m.quantidade))}`,
             money(m.valorUnitario),
             m.veiculoId ? `${esc((Vehicles.find(ctx.state, m.veiculoId) || {}).placa || m.veiculoId)}${m.manutencaoId ? ` · ${esc(m.manutencaoId)}` : ''}` : 'Entrada no estoque',
             esc(m.responsavel),
@@ -420,7 +442,7 @@ const WarehouseScreens = (function () {
         return [
           Utils.formatDate(r.data),
           esc(r.pecaDescricao),
-          String(r.quantidade),
+          Utils.formatQuantity(r.quantidade),
           esc(vehicle ? vehicle.placa : r.veiculoId),
           esc(r.responsavel),
           money(r.valorTotal),
@@ -529,7 +551,7 @@ const WarehouseScreens = (function () {
       const linhas = rows.map(r => [
         Utils.formatDate(r.data),
         esc(r.descricao),
-        String(r.quantidade),
+        Utils.formatQuantity(r.quantidade),
         money(r.valorUnitario),
         money(r.valorTotal),
         esc(r.veiculoPlaca),

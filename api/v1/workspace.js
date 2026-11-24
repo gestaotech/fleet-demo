@@ -37,6 +37,7 @@ const {
   validarInvariantes,
   colecoesAlteradas,
   modulosNecessarios,
+  ajustesDaAlteracao,
 } = require("../../lib/workspace");
 
 const LIMITE_CORPO_BYTES = 1500 * 1024;
@@ -161,6 +162,19 @@ async function responderGravacao(req, res, sessao) {
     }
   }
 
+  const ajustes = ajustesDaAlteracao(atual.state, novo);
+  if (ajustes.alterados.length) {
+    throw new ApiError(422, "AJUSTE_IMUTAVEL", "Ajustes de estoque já registrados não podem ser alterados ou excluídos.");
+  }
+  if (ajustes.novos.length) {
+    if (!sessao.permissoes.includes("admin")) {
+      throw new ApiError(403, "AJUSTE_RESTRITO", "Somente administradores podem ajustar a quantidade em estoque.");
+    }
+    if (!sessao.reauthAte || new Date(sessao.reauthAte) <= new Date()) {
+      throw new ApiError(403, "REAUTENTICACAO_NECESSARIA", "Confirme sua senha de administrador para registrar o ajuste.");
+    }
+  }
+
   const invariantes = validarInvariantes(novo);
   if (invariantes.length) {
     throw new ApiError(422, "ESTADO_INVALIDO", invariantes[0], { erros: invariantes });
@@ -171,7 +185,7 @@ async function responderGravacao(req, res, sessao) {
     JSON.stringify(novo),
     sessao.usuario.id,
     base,
-    JSON.stringify({ colecoesAlteradas: alteradas, revisaoAnterior: base }),
+    JSON.stringify({ colecoesAlteradas: alteradas, revisaoAnterior: base, ajustesRegistrados: ajustes.novos.map((m) => m.id) }),
     hashIp(req),
     userAgent(req),
   ]);
