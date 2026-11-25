@@ -24,7 +24,7 @@ const ExternalSpending = (function () {
     if (!TIPOS.includes(tipo)) errors.push('Selecione o tipo: Peça ou Insumo.');
     if (!descricao) errors.push('Informe a descrição do item comprado.');
     if (!(quantidade > 0)) errors.push('Informe a quantidade maior que zero (use fração, como 1/2, se necessário).');
-    if (!(valorUnitario > 0)) errors.push('Informe o valor unitário maior que zero.');
+    if (data.retiradaEstoque ? !(valorUnitario >= 0) : !(valorUnitario > 0)) errors.push('Informe um valor unitário válido.');
     if (!fornecedor) errors.push('Informe o fornecedor.');
     if (!responsavel) errors.push('Informe o responsável pelo registro.');
 
