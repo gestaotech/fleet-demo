@@ -208,19 +208,29 @@ const VehicleScreens = (function () {
     });
 
     if (editing) {
-      formEl.querySelector('#vehicle-delete').addEventListener('click', () => {
+      formEl.querySelector('#vehicle-delete').addEventListener('click', async event => {
+        const button = event.currentTarget;
         if (!UI.confirmAction(`Excluir o veículo ${editing.placa}? Esta ação não pode ser desfeita.`)) return;
+        button.disabled = true;
         const result = Vehicles.remove(ctx.state, editing.id);
         if (!result.ok) {
-          UI.showErrors(main.querySelector('#form-errors'), result.errors);
+          UI.showErrors(main.querySelector('#form-errors'), result.errors || ['Não foi possível excluir o veículo.']);
+          button.disabled = false;
           return;
         }
-        ctx.save().then(async ok => {
-          if (!ok) return;
-          await Api.request('DELETE', `/veiculos/crlv/${encodeURIComponent(editing.id)}`);
-          ctx.toast('Veículo excluído.');
+        const ok = await ctx.save();
+        if (!ok) {
+          button.disabled = false;
+          return;
+        }
+        const documento = await Api.request('DELETE', `/veiculos/crlv/${encodeURIComponent(editing.id)}`);
+        if (!documento.ok) {
+          ctx.toast(`Veículo excluído, mas não foi possível remover o CRLV: ${documento.error?.message || 'erro ao excluir o documento'}`, 'error');
           ctx.go('#/veiculos');
-        });
+          return;
+        }
+        ctx.toast('Veículo excluído.');
+        ctx.go('#/veiculos');
       });
     }
   }
