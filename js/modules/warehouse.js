@@ -642,14 +642,17 @@ const WarehouseScreens = (function () {
       <label class="field">Data da compra/retirada<input name="data" type="date" required value="${esc(v.data)}"></label>
       <label class="field">Tipo<select name="tipo" required>${tipos}</select></label>
       <label class="field full">Descrição do item<input name="descricao" required value="${esc(v.descricao)}" placeholder="Ex.: Lubrificante para correntes" ${retirada ? 'readonly' : ''}></label>
-      <label class="field">Quantidade<input name="quantidade" inputmode="decimal" required value="${esc(quantidade)}" placeholder="Ex.: 2 ou 1/2"></label>
+      <label class="field" data-purchase-quantity>Quantidade<input name="quantidade" inputmode="decimal" required value="${esc(quantidade)}" placeholder="Ex.: 2 ou 1/2"></label>
       <label class="field">Valor unitário (R$)<input name="valorUnitario" inputmode="decimal" required value="${esc(moneyInput(v.valorUnitario))}" placeholder="0,00" ${retirada ? 'readonly' : ''}></label>
       <label class="field">Fornecedor<input name="fornecedor" required value="${esc(retirada ? 'Estoque interno' : v.fornecedor)}" ${retirada ? 'readonly' : ''}></label>
       <label class="field">Responsável pelo registro<input name="responsavel" required value="${esc(v.responsavel)}"></label>
       <label class="field full">Observação<input name="observacao" value="${esc(v.observacao)}" placeholder="Opcional: nota fiscal, finalidade"></label>
       <label class="field full"><span><input type="checkbox" name="retiradaEstoque" value="true" ${retirada ? 'checked' : ''} ${current ? 'disabled' : ''}> Retirar do estoque</span></label>
       <div class="field full" data-stock-withdrawal ${retirada ? '' : 'hidden'}>
-        <label class="field">Peça do estoque (digite código ou descrição)${UI.searchField('part', state, { id: 'spending-peca', name: 'pecaId', placeholder: 'Ex.: FLT-1001 ou filtro', required: !current })}</label>
+        <div class="form-grid" style="grid-template-columns:minmax(0, 2fr) minmax(120px, 1fr); gap:12px; align-items:end">
+          <label class="field">Peça do estoque (digite código ou descrição)${UI.searchField('part', state, { id: 'spending-peca', name: 'pecaId', placeholder: 'Ex.: FLT-1001 ou filtro', required: !current })}</label>
+          <label class="field">Quantidade retirada<input name="quantidadeRetirada" inputmode="decimal" value="${esc(quantidade)}" placeholder="Ex.: 2 ou 1/2" ${retirada ? 'required' : ''}></label>
+        </div>
         <p class="hint">Ao selecionar a peça, descrição e valor unitário serão preenchidos pelo cadastro. O saldo será baixado ao registrar o gasto.</p>
       </div>
       <p class="hint full" data-total-hint></p>`;
@@ -665,11 +668,17 @@ const WarehouseScreens = (function () {
     const valorUnitario = formEl.querySelector('[name="valorUnitario"]');
     const fornecedor = formEl.querySelector('[name="fornecedor"]');
     const quantidadeInput = formEl.querySelector('[name="quantidade"]');
+    const quantidadeRetirada = formEl.querySelector('[name="quantidadeRetirada"]');
+    const quantidadeCompra = formEl.querySelector('[data-purchase-quantity]');
     const syncSearch = UI.bindSearchFields(formEl, state);
     const toggle = () => {
       const enabled = Boolean(checkbox && checkbox.checked);
       if (stockArea) stockArea.hidden = !enabled;
       if (partInput) partInput.required = enabled;
+      if (quantidadeRetirada) quantidadeRetirada.required = enabled;
+      if (quantidadeRetirada) quantidadeRetirada.disabled = !enabled;
+      if (quantidadeInput) quantidadeInput.disabled = enabled;
+      if (quantidadeCompra) quantidadeCompra.hidden = enabled;
       if (!enabled && partHidden) { partHidden.value = ''; if (partInput) partInput.value = ''; }
       if (descricao) descricao.readOnly = enabled;
       if (valorUnitario) valorUnitario.readOnly = enabled;
@@ -680,7 +689,7 @@ const WarehouseScreens = (function () {
       update();
     };
     const update = () => {
-      const quantidade = Utils.parseQuantidade(quantidadeInput.value);
+      const quantidade = Utils.parseQuantidade(checkbox && checkbox.checked && quantidadeRetirada ? quantidadeRetirada.value : quantidadeInput.value);
       const valor = Utils.parseMoney(valorUnitario.value);
       hint.textContent = quantidade > 0 && valor > 0
         ? `Total: ${money(Utils.round2(quantidade * valor))}`
@@ -696,6 +705,7 @@ const WarehouseScreens = (function () {
       }
     });
     formEl.addEventListener('input', update);
+    if (quantidadeRetirada) quantidadeRetirada.addEventListener('input', update);
     toggle();
     return syncSearch;
   }
