@@ -631,34 +631,68 @@ const WarehouseScreens = (function () {
     renderList();
   }
 
-  /* Gastos externos: compras de peças e insumos que não são de manutenção. Não alteram o estoque. */
+  /* Gastos externos podem ser registrados como compra ou como baixa de item já estocado. */
   function spendingFields(state, current) {
     const v = current || { data: Utils.todayIso(), tipo: 'Insumo', descricao: '', quantidade: '', valorUnitario: '', fornecedor: '', responsavel: '', observacao: '' };
     const quantidade = v.quantidade === '' || v.quantidade === undefined ? '' : String(v.quantidade).replace('.', ',');
     const tipos = ExternalSpending.TIPOS.map(t => option(t, t, t === v.tipo)).join('');
+    const retirada = Boolean(v.retiradaEstoque);
+    const part = retirada ? Warehouse.findPart(state, v.pecaId) : null;
     return `
-      <label class="field">Data da compra<input name="data" type="date" required value="${esc(v.data)}"></label>
+      <label class="field">Data da compra/retirada<input name="data" type="date" required value="${esc(v.data)}"></label>
       <label class="field">Tipo<select name="tipo" required>${tipos}</select></label>
-      <label class="field full">Descrição do item<input name="descricao" required value="${esc(v.descricao)}" placeholder="Ex.: Lubrificante para correntes"></label>
+      <label class="field full">Descrição do item<input name="descricao" required value="${esc(v.descricao)}" placeholder="Ex.: Lubrificante para correntes" ${retirada ? 'readonly' : ''}></label>
       <label class="field">Quantidade<input name="quantidade" inputmode="decimal" required value="${esc(quantidade)}" placeholder="Ex.: 2 ou 1/2"></label>
-      <label class="field">Valor unitário (R$)<input name="valorUnitario" inputmode="decimal" required value="${esc(moneyInput(v.valorUnitario))}" placeholder="0,00"></label>
-      <label class="field">Fornecedor<input name="fornecedor" required value="${esc(v.fornecedor)}"></label>
+      <label class="field">Valor unitário (R$)<input name="valorUnitario" inputmode="decimal" required value="${esc(moneyInput(v.valorUnitario))}" placeholder="0,00" ${retirada ? 'readonly' : ''}></label>
+      <label class="field">Fornecedor<input name="fornecedor" required value="${esc(v.fornecedor)}" ${retirada ? 'disabled' : ''}></label>
       <label class="field">Responsável pelo registro<input name="responsavel" required value="${esc(v.responsavel)}"></label>
       <label class="field full">Observação<input name="observacao" value="${esc(v.observacao)}" placeholder="Opcional: nota fiscal, finalidade"></label>
+      <label class="field full"><span><input type="checkbox" name="retiradaEstoque" value="true" ${retirada ? 'checked disabled' : ''}> Retirar do estoque</span></label>
+      <div class="field full" data-stock-withdrawal ${retirada ? '' : 'hidden'}>
+        <label class="field">Peça do estoque (digite código ou descrição)${UI.searchField('part', state, { id: 'spending-peca', name: 'pecaId', placeholder: 'Ex.: FLT-1001 ou filtro', required: !current })}</label>
+        <p class="hint">Ao selecionar a peça, descrição e valor unitário serão preenchidos pelo cadastro. O saldo será baixado ao registrar o gasto.</p>
+      </div>
       <p class="hint full" data-total-hint></p>`;
   }
 
-  function bindSpendingTotal(formEl) {
+  function bindSpendingTotal(formEl, state) {
     const hint = formEl.querySelector('[data-total-hint]');
+    const checkbox = formEl.querySelector('[name="retiradaEstoque"]');
+    const stockArea = formEl.querySelector('[data-stock-withdrawal]');
+    const partInput = formEl.querySelector('#spending-peca');
+    const partHidden = formEl.querySelector('input[type="hidden"][name="pecaId"]');
+    const descricao = formEl.querySelector('[name="descricao"]');
+    const valorUnitario = formEl.querySelector('[name="valorUnitario"]');
+    const quantidadeInput = formEl.querySelector('[name="quantidade"]');
+    const syncSearch = UI.bindSearchFields(formEl, state);
+    const toggle = () => {
+      const enabled = Boolean(checkbox && checkbox.checked);
+      if (stockArea) stockArea.hidden = !enabled;
+      if (partInput) partInput.required = enabled;
+      if (!enabled && partHidden) { partHidden.value = ''; if (partInput) partInput.value = ''; }
+      if (descricao) descricao.readOnly = enabled;
+      if (valorUnitario) valorUnitario.readOnly = enabled;
+      update();
+    };
     const update = () => {
-      const quantidade = Utils.parseQuantidade(formEl.querySelector('[name="quantidade"]').value);
-      const valor = Utils.parseMoney(formEl.querySelector('[name="valorUnitario"]').value);
+      const quantidade = Utils.parseQuantidade(quantidadeInput.value);
+      const valor = Utils.parseMoney(valorUnitario.value);
       hint.textContent = quantidade > 0 && valor > 0
         ? `Total: ${money(Utils.round2(quantidade * valor))}`
         : 'Informe a quantidade e o valor unitário para ver o total.';
     };
+    if (checkbox) checkbox.addEventListener('change', toggle);
+    if (partHidden) partHidden.addEventListener('change', () => {
+      const part = Warehouse.findPart(state, partHidden.value);
+      if (part && checkbox && checkbox.checked) {
+        descricao.value = part.descricao;
+        valorUnitario.value = moneyInput(part.valorUnitario);
+        update();
+      }
+    });
     formEl.addEventListener('input', update);
-    update();
+    toggle();
+    return syncSearch;
   }
 
   function externalSpending(main, params, ctx) {
@@ -685,9 +719,10 @@ const WarehouseScreens = (function () {
       </section>`;
 
     const formEl = main.querySelector('#spending-form');
-    bindSpendingTotal(formEl);
+    const syncSearch = bindSpendingTotal(formEl, ctx.state);
     formEl.addEventListener('submit', event => {
       event.preventDefault();
+      syncSearch();
       const result = ExternalSpending.create(ctx.state, readForm(formEl));
       if (!result.ok) {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);
@@ -737,6 +772,11 @@ const WarehouseScreens = (function () {
       main.innerHTML = `${pageHeader('Gasto não encontrado')}<p><a class="link" href="#/almoxarifado/gastos">Voltar aos gastos externos</a></p>`;
       return;
     }
+    if (editing.retiradaEstoque) {
+      main.innerHTML = `${pageHeader(`Gasto ${editing.id}`, 'Este gasto está vinculado a uma retirada do estoque. Para preservar o histórico e o saldo, ele não pode ser editado ou excluído.')}
+        <section class="card"><p><strong>${esc(editing.descricao)}</strong></p><p>Quantidade: ${Utils.formatQuantity(editing.quantidade)} · Valor total: ${money(editing.valorTotal)}</p><p>Peça vinculada: ${esc(editing.pecaId)}</p><a class="btn btn-ghost" href="#/almoxarifado/gastos">Voltar aos gastos externos</a></section>`;
+      return;
+    }
     main.innerHTML = `
       ${pageHeader(`Editar gasto ${editing.id}`, 'A alteração não toca o estoque nem os custos dos veículos.')}
       <form class="card form-grid" id="spending-form" novalidate>
@@ -750,9 +790,10 @@ const WarehouseScreens = (function () {
       </form>`;
 
     const formEl = main.querySelector('#spending-form');
-    bindSpendingTotal(formEl);
+    const syncSearch = bindSpendingTotal(formEl, ctx.state);
     formEl.addEventListener('submit', event => {
       event.preventDefault();
+      syncSearch();
       const result = ExternalSpending.update(ctx.state, editing.id, readForm(formEl));
       if (!result.ok) {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);
