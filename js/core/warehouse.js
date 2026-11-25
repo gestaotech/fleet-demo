@@ -353,6 +353,38 @@ const Warehouse = (function () {
     return { ok: true, value: loan };
   }
 
+  /* Baixa vinculada a gasto externo: não exige veículo e não entra em custos de manutenção. */
+  function registerSpendingWithdrawal(state, data) {
+    const part = findPart(state, data.pecaId);
+    const quantidade = Utils.parseQuantidade(data.quantidade);
+    const responsavel = Utils.normalizeText(data.responsavel);
+    const errors = [];
+    if (!part) errors.push('Selecione uma peça cadastrada no estoque.');
+    if (!Number.isFinite(quantidade) || quantidade <= 0) errors.push('Informe uma quantidade maior que zero.');
+    if (part && Number.isFinite(quantidade) && quantidade > 0) {
+      const saldo = balance(state, part.id);
+      if (quantidade > saldo) errors.push(`Saldo insuficiente para ${part.descricao}: disponível ${saldo}, solicitado ${quantidade}.`);
+    }
+    if (!Utils.isValidDate(data.data)) errors.push('Informe a data da retirada.');
+    if (!responsavel) errors.push('Informe o responsável pela retirada.');
+    if (errors.length) return { ok: false, errors };
+    const movement = {
+      id: Utils.nextId('MOV', state.movimentacoes, 3),
+      tipo: 'Saida',
+      pecaId: part.id,
+      quantidade,
+      valorUnitario: part.valorUnitario,
+      data: data.data,
+      veiculoId: null,
+      manutencaoId: null,
+      responsavel,
+      observacao: [Utils.normalizeText(data.observacao), `Baixa vinculada ao gasto externo ${data.gastoId || ''}`].filter(Boolean).join(' · '),
+      gastoExternoId: data.gastoId || null,
+    };
+    state.movimentacoes.push(movement);
+    return { ok: true, value: movement };
+  }
+
   /* Peça de fora do almoxarifado: não altera saldo; entra apenas nos custos do veículo. */
   function registerExternalPart(state, data) {
     const errors = [];
@@ -434,7 +466,7 @@ const Warehouse = (function () {
   return {
     findPart, balance, isLowStock, inventory, filterInventory,
     validatePart, createPart, updatePart, deletePart, addEntry, validateAdjustment, addAdjustment,
-    validateWithdrawal, registerWithdrawal, registerWithdrawals, listTools, createTool, loanTool, returnTool, registerExternalPart,
+    validateWithdrawal, registerWithdrawal, registerWithdrawals, registerSpendingWithdrawal, listTools, createTool, loanTool, returnTool, registerExternalPart,
     movementsOf, withdrawals, externalParts,
   };
 })();
