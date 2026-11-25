@@ -677,7 +677,7 @@ const WarehouseScreens = (function () {
       if (partInput) partInput.required = enabled;
       if (quantidadeRetirada) quantidadeRetirada.required = enabled;
       if (quantidadeRetirada) quantidadeRetirada.disabled = !enabled;
-      if (quantidadeInput) quantidadeInput.disabled = enabled;
+      if (quantidadeInput) quantidadeInput.disabled = false;
       if (quantidadeCompra) quantidadeCompra.hidden = enabled;
       if (!enabled && partHidden) { partHidden.value = ''; if (partInput) partInput.value = ''; }
       if (descricao) descricao.readOnly = enabled;
@@ -707,7 +707,12 @@ const WarehouseScreens = (function () {
     formEl.addEventListener('input', update);
     if (quantidadeRetirada) quantidadeRetirada.addEventListener('input', update);
     toggle();
-    return syncSearch;
+    return () => {
+      syncSearch();
+      if (checkbox && checkbox.checked && quantidadeRetirada && quantidadeInput) {
+        quantidadeInput.value = quantidadeRetirada.value;
+      }
+    };
   }
 
   function externalSpending(main, params, ctx) {
