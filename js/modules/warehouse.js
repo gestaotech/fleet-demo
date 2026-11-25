@@ -74,7 +74,7 @@ const WarehouseScreens = (function () {
         const syncRemove = () => items.querySelectorAll('[data-remove-item]').forEach(button => { button.disabled = items.querySelectorAll('.withdrawal-item-row').length === 1; });
         add.addEventListener('click', () => {
           const wrapper = document.createElement('div');
-          wrapper.innerHTML = partRowHtml(nextItemIndex++);
+          wrapper.innerHTML = withdrawalPartRowHtml(state, nextItemIndex++);
           const row = wrapper.firstElementChild;
           row._syncSearch = UI.bindSearchFields(row, state);
           items.appendChild(row);
