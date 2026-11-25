@@ -53,10 +53,10 @@ const WarehouseScreens = (function () {
     const vehicleField = fixed
       ? `<input type="hidden" name="veiculoId" value="${esc(fixed.veiculoId)}"><input type="hidden" name="manutencaoId" value="${esc(fixed.id)}"><div class="field"><span>Veículo</span><strong>${esc((Vehicles.find(state, fixed.veiculoId) || {}).placa || fixed.veiculoId)}</strong></div><div class="field"><span>Manutenção</span><strong>${esc(fixed.id)}</strong></div>`
       : `<label class="field">Veículo de destino (digite a placa)${UI.searchField('vehicle', state, { id: 'withdrawal-veiculo', name: 'veiculoId', placeholder: 'Ex.: DEM1A01', required: true, apenasAtivos: true })}</label><label class="field">Manutenção vinculada (opcional)<select name="manutencaoId"><option value="">Retirada direta, sem manutenção</option>${openMaintenanceOptions(state)}</select></label>`;
-    const partOptions = state.pecas.map(part => `<option value="${esc(part.id)}">${esc(part.codigo)} — ${esc(part.descricao)} (saldo: ${Utils.formatQuantity(Warehouse.balance(state, part.id))})</option>`).join('');
+    const partRowHtml = (index) => `<div class="withdrawal-item-row form-grid" data-item-index="${index}"><label class="field">Peça (digite código ou descrição)${UI.searchField('part', state, { id: `withdrawal-peca-${index}`, name: `pecaId_${index}`, placeholder: 'Ex.: FLT-1001 ou filtro', required: true })}</label><label class="field">Quantidade<input name="quantidade" inputmode="decimal" required placeholder="Ex.: 1 ou 1/2"></label><button type="button" class="btn btn-ghost" data-remove-item aria-label="Remover peça" ${index === 0 ? 'disabled' : ''}>Remover</button></div>`;
     const partField = fixed
       ? `<label class="field full">Peça retirada (digite código ou descrição)${UI.searchField('part', state, { id: 'withdrawal-peca', name: 'pecaId', placeholder: 'Ex.: FLT-1001 ou filtro', required: true })}</label><label class="field">Quantidade<input name="quantidade" inputmode="decimal" required placeholder="Ex.: 1 ou 1/2"></label>`
-      : `<div class="field full"><span>Peças e quantidades</span><div id="withdrawal-items" class="form-grid"><div class="withdrawal-item-row form-grid"><select name="pecaId" required><option value="">Selecione uma peça</option>${partOptions}</select><input name="quantidade" inputmode="decimal" required placeholder="Quantidade"><button type="button" class="btn btn-ghost" data-remove-item aria-label="Remover peça" disabled>Remover</button></div></div><button type="button" class="btn btn-ghost" id="add-withdrawal-item">Adicionar outra peça</button></div>`;
+      : `<div class="field full"><span>Peças e quantidades</span><div id="withdrawal-items" class="form-grid">${partRowHtml(0)}</div><button type="button" class="btn btn-ghost" id="add-withdrawal-item">Adicionar outra peça</button></div>`;
     return `<form class="card form-grid" data-form="withdrawal" novalidate><div class="form-errors full"></div>${partField}${vehicleField}<label class="field">Data da retirada<input name="data" type="date" required value="${Utils.todayIso()}"></label><label class="field">Responsável pela solicitação<input name="responsavel" required></label><label class="field full">Observação<input name="observacao" placeholder="Opcional"></label><div class="form-actions full"><button class="btn btn-primary" type="submit">Confirmar retirada</button></div></form>`;
   }
 
@@ -67,18 +67,22 @@ const WarehouseScreens = (function () {
       const items = form.querySelector('#withdrawal-items');
       const add = form.querySelector('#add-withdrawal-item');
       if (items && add) {
-        const options = items.querySelector('select').innerHTML;
+        let nextItemIndex = 1;
         const syncRemove = () => items.querySelectorAll('[data-remove-item]').forEach(button => { button.disabled = items.querySelectorAll('.withdrawal-item-row').length === 1; });
         add.addEventListener('click', () => {
-          const row = document.createElement('div');
-          row.className = 'withdrawal-item-row form-grid';
-          row.innerHTML = `<select name="pecaId" required>${options}</select><input name="quantidade" inputmode="decimal" required placeholder="Quantidade"><button type="button" class="btn btn-ghost" data-remove-item>Remover</button>`;
-          items.appendChild(row); syncRemove();
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = partRowHtml(nextItemIndex++);
+          const row = wrapper.firstElementChild;
+          row._syncSearch = UI.bindSearchFields(row, state);
+          items.appendChild(row);
+          syncRemove();
         });
         items.addEventListener('click', event => {
           const button = event.target.closest('[data-remove-item]');
           if (button && !button.disabled) { button.closest('.withdrawal-item-row').remove(); syncRemove(); }
         });
+        const firstRow = items.querySelector('.withdrawal-item-row');
+        if (firstRow) firstRow._syncSearch = syncSearch;
       }
     }
     form.addEventListener('submit', event => {
@@ -90,7 +94,11 @@ const WarehouseScreens = (function () {
       const data = readForm(form);
       const result = opts.maintenance
         ? Maintenance.registerWithdrawal(ctx.state, opts.maintenance.id, data)
-        : Warehouse.registerWithdrawals(ctx.state, { ...data, itens: [...form.querySelectorAll('.withdrawal-item-row')].map(row => ({ pecaId: row.querySelector('[name="pecaId"]').value, quantidade: row.querySelector('[name="quantidade"]').value })) });
+        : Warehouse.registerWithdrawals(ctx.state, { ...data, itens: [...form.querySelectorAll('.withdrawal-item-row')].map(row => {
+          if (row._syncSearch) row._syncSearch();
+          const campoPeca = row.querySelector('input[type="hidden"][name^="pecaId_"]');
+          return { pecaId: campoPeca ? campoPeca.value : '', quantidade: row.querySelector('[name="quantidade"]').value };
+        }) });
       if (!result.ok) {
         UI.showErrors(form.querySelector('.form-errors'), result.errors); form.dataset.sending = ''; button.disabled = false; return;
       }
