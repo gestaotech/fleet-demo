@@ -704,7 +704,7 @@ const WarehouseScreens = (function () {
     const today = Utils.todayIso();
     const monthStart = `${today.slice(0, 8)}01`;
     main.innerHTML = `
-      ${pageHeader('Gastos externos', 'Compras de peças e insumos que não são de manutenção. O registro não altera o saldo do estoque nem os custos dos veículos.')}
+      ${pageHeader('Gastos externos', 'Registre compras externas ou marque “Retirar do estoque” para dar baixa em uma peça já cadastrada no almoxarifado.')}
       <section class="card">
         <h2>Registrar gasto</h2>
         <form class="form-grid" id="spending-form" novalidate>
@@ -735,7 +735,7 @@ const WarehouseScreens = (function () {
       }
       ctx.save().then(ok => {
         if (!ok) return;
-        ctx.toast('Gasto externo registrado.');
+        ctx.toast(result.value.retiradaEstoque ? 'Gasto registrado e saldo do estoque atualizado.' : 'Gasto externo registrado.');
         ctx.refresh();
       });
     });
