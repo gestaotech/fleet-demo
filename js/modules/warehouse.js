@@ -644,10 +644,10 @@ const WarehouseScreens = (function () {
       <label class="field full">Descrição do item<input name="descricao" required value="${esc(v.descricao)}" placeholder="Ex.: Lubrificante para correntes" ${retirada ? 'readonly' : ''}></label>
       <label class="field">Quantidade<input name="quantidade" inputmode="decimal" required value="${esc(quantidade)}" placeholder="Ex.: 2 ou 1/2"></label>
       <label class="field">Valor unitário (R$)<input name="valorUnitario" inputmode="decimal" required value="${esc(moneyInput(v.valorUnitario))}" placeholder="0,00" ${retirada ? 'readonly' : ''}></label>
-      <label class="field">Fornecedor<input name="fornecedor" required value="${esc(v.fornecedor)}" ${retirada ? 'disabled' : ''}></label>
+      <label class="field">Fornecedor<input name="fornecedor" required value="${esc(retirada ? 'Estoque interno' : v.fornecedor)}" ${retirada ? 'readonly' : ''}></label>
       <label class="field">Responsável pelo registro<input name="responsavel" required value="${esc(v.responsavel)}"></label>
       <label class="field full">Observação<input name="observacao" value="${esc(v.observacao)}" placeholder="Opcional: nota fiscal, finalidade"></label>
-      <label class="field full"><span><input type="checkbox" name="retiradaEstoque" value="true" ${retirada ? 'checked disabled' : ''}> Retirar do estoque</span></label>
+      <label class="field full"><span><input type="checkbox" name="retiradaEstoque" value="true" ${retirada ? 'checked' : ''} ${current ? 'disabled' : ''}> Retirar do estoque</span></label>
       <div class="field full" data-stock-withdrawal ${retirada ? '' : 'hidden'}>
         <label class="field">Peça do estoque (digite código ou descrição)${UI.searchField('part', state, { id: 'spending-peca', name: 'pecaId', placeholder: 'Ex.: FLT-1001 ou filtro', required: !current })}</label>
         <p class="hint">Ao selecionar a peça, descrição e valor unitário serão preenchidos pelo cadastro. O saldo será baixado ao registrar o gasto.</p>
@@ -663,6 +663,7 @@ const WarehouseScreens = (function () {
     const partHidden = formEl.querySelector('input[type="hidden"][name="pecaId"]');
     const descricao = formEl.querySelector('[name="descricao"]');
     const valorUnitario = formEl.querySelector('[name="valorUnitario"]');
+    const fornecedor = formEl.querySelector('[name="fornecedor"]');
     const quantidadeInput = formEl.querySelector('[name="quantidade"]');
     const syncSearch = UI.bindSearchFields(formEl, state);
     const toggle = () => {
@@ -672,6 +673,10 @@ const WarehouseScreens = (function () {
       if (!enabled && partHidden) { partHidden.value = ''; if (partInput) partInput.value = ''; }
       if (descricao) descricao.readOnly = enabled;
       if (valorUnitario) valorUnitario.readOnly = enabled;
+      if (fornecedor) {
+        if (enabled) { fornecedor.value = 'Estoque interno'; fornecedor.readOnly = true; }
+        else { if (fornecedor.value === 'Estoque interno') fornecedor.value = ''; fornecedor.readOnly = false; }
+      }
       update();
     };
     const update = () => {
