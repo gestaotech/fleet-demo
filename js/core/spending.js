@@ -41,6 +41,8 @@ const ExternalSpending = (function () {
         fornecedor,
         responsavel,
         observacao: Utils.normalizeText(data.observacao),
+        retiradaEstoque: Boolean(data.retiradaEstoque),
+        pecaId: data.retiradaEstoque ? Utils.normalizeText(data.pecaId) : '',
       },
     };
   }
@@ -48,6 +50,25 @@ const ExternalSpending = (function () {
   function create(state, data) {
     const checked = validate(data);
     if (checked.errors.length) return { ok: false, errors: checked.errors };
+    if (data.retiradaEstoque) {
+      const part = Warehouse.findPart(state, data.pecaId);
+      if (!part) return { ok: false, errors: ['Selecione uma peça cadastrada no estoque.'] };
+      if (!Number.isFinite(checked.value.quantidade) || checked.value.quantidade <= 0) return { ok: false, errors: ['Informe uma quantidade válida para retirar.'] };
+      const gastoId = Utils.nextId('GEX', state.gastosExternos || [], 4);
+      const retirada = Warehouse.registerSpendingWithdrawal(state, {
+        pecaId: part.id, quantidade: checked.value.quantidade, data: checked.value.data,
+        responsavel: checked.value.responsavel, observacao: checked.value.observacao, gastoId,
+      });
+      if (!retirada.ok) return retirada;
+      checked.value.descricao = part.descricao;
+      checked.value.valorUnitario = part.valorUnitario;
+      checked.value.valorTotal = Utils.round2(checked.value.quantidade * part.valorUnitario);
+      checked.value.pecaId = part.id;
+      if (!state.gastosExternos) state.gastosExternos = [];
+      const gasto = { id: gastoId, ...checked.value, fornecedor: '' };
+      state.gastosExternos.push(gasto);
+      return { ok: true, value: gasto };
+    }
     if (!state.gastosExternos) state.gastosExternos = [];
     const gasto = { id: Utils.nextId('GEX', state.gastosExternos, 4), ...checked.value };
     state.gastosExternos.push(gasto);
@@ -57,6 +78,7 @@ const ExternalSpending = (function () {
   function update(state, id, data) {
     const gasto = find(state, id);
     if (!gasto) return { ok: false, errors: ['Gasto não encontrado.'] };
+    if (gasto.retiradaEstoque) return { ok: false, errors: ['Este gasto está vinculado a uma retirada do estoque e não pode ser editado.'] };
     const checked = validate(data);
     if (checked.errors.length) return { ok: false, errors: checked.errors };
     Object.assign(gasto, checked.value);
@@ -66,6 +88,7 @@ const ExternalSpending = (function () {
   function remove(state, id) {
     const gasto = find(state, id);
     if (!gasto) return { ok: false, errors: ['Gasto não encontrado.'] };
+    if (gasto.retiradaEstoque) return { ok: false, errors: ['Este gasto está vinculado a uma retirada do estoque e não pode ser excluído.'] };
     state.gastosExternos.splice(state.gastosExternos.indexOf(gasto), 1);
     return { ok: true, value: gasto };
   }
