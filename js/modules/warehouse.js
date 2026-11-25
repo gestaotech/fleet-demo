@@ -293,11 +293,13 @@ const WarehouseScreens = (function () {
       event.preventDefault();
       const data = readForm(event.currentTarget);
       const novaQuantidade = Utils.parseQuantidade(data.novaQuantidade);
-      const ajustar = podeAjustar && data.novaQuantidade !== '' && novaQuantidade !== Warehouse.balance(ctx.state, editing.id);
+      const ajustar = podeAjustar && Boolean(editing) && data.novaQuantidade !== '' && novaQuantidade !== Warehouse.balance(ctx.state, editing.id);
+      // O formulário de edição não possui campo pecaId: o identificador correto é o da peça editada.
+      const dadosAjuste = ajustar ? { ...data, pecaId: editing.id } : data;
       if (ajustar) {
         const erros = [
           ...Warehouse.validatePart(ctx.state, data, editing.id).errors,
-          ...Warehouse.validateAdjustment(ctx.state, data).errors,
+          ...Warehouse.validateAdjustment(ctx.state, dadosAjuste).errors,
         ];
         if (!data.senhaAdmin) erros.push('Informe sua senha de administrador para registrar o ajuste.');
         if (erros.length) {
@@ -315,7 +317,13 @@ const WarehouseScreens = (function () {
         UI.showErrors(main.querySelector('#form-errors'), result.errors);
         return;
       }
-      if (ajustar) Warehouse.addAdjustment(ctx.state, data, ctx.user.nome);
+      if (ajustar) {
+        const ajuste = Warehouse.addAdjustment(ctx.state, dadosAjuste, ctx.user.nome);
+        if (!ajuste.ok) {
+          UI.showErrors(main.querySelector('#form-errors'), ajuste.errors || ['Não foi possível registrar o ajuste de quantidade.']);
+          return;
+        }
+      }
       ctx.save().then(ok => {
         if (!ok) return;
         ctx.toast(ajustar ? 'Peça atualizada e ajuste de estoque registrado.' : (editing ? 'Peça atualizada.' : 'Peça cadastrada.'));
