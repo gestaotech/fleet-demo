@@ -825,14 +825,23 @@ const WarehouseScreens = (function () {
         ctx.go('#/almoxarifado/gastos');
       });
     });
-    main.querySelector('#spending-delete').addEventListener('click', () => {
+    main.querySelector('#spending-delete').addEventListener('click', async event => {
+      const button = event.currentTarget;
       if (!UI.confirmAction(`Excluir o gasto ${editing.id} (${editing.descricao})? Esta ação não pode ser desfeita.`)) return;
-      ExternalSpending.remove(ctx.state, editing.id);
-      ctx.save().then(ok => {
-        if (!ok) return;
-        ctx.toast('Gasto excluído.');
-        ctx.go('#/almoxarifado/gastos');
-      });
+      button.disabled = true;
+      const result = ExternalSpending.remove(ctx.state, editing.id);
+      if (!result.ok) {
+        UI.showErrors(main.querySelector('#form-errors'), result.errors || ['Não foi possível excluir o gasto.']);
+        button.disabled = false;
+        return;
+      }
+      const ok = await ctx.save();
+      if (!ok) {
+        button.disabled = false;
+        return;
+      }
+      ctx.toast('Gasto excluído.');
+      ctx.go('#/almoxarifado/gastos');
     });
   }
 
