@@ -13,6 +13,10 @@ const WarehouseScreens = (function () {
     return value === undefined || value === null || value === '' ? '' : Number(value).toFixed(2).replace('.', ',');
   }
 
+  function withdrawalPartRowHtml(state, index) {
+    return `<div class="withdrawal-item-row form-grid" data-item-index="${index}"><label class="field">Peça (digite código ou descrição)${UI.searchField('part', state, { id: `withdrawal-peca-${index}`, name: `pecaId_${index}`, placeholder: 'Ex.: FLT-1001 ou filtro', required: true })}</label><label class="field">Quantidade<input name="quantidade" inputmode="decimal" required placeholder="Ex.: 1 ou 1/2"></label><button type="button" class="btn btn-ghost" data-remove-item aria-label="Remover peça" ${index === 0 ? 'disabled' : ''}>Remover</button></div>`;
+  }
+
   function stockBadge(row) {
     if (row.saldo === 0) return UI.badge('Zerado', 'danger');
     if (row.baixo) return UI.badge('Estoque baixo', 'warn');
@@ -53,10 +57,9 @@ const WarehouseScreens = (function () {
     const vehicleField = fixed
       ? `<input type="hidden" name="veiculoId" value="${esc(fixed.veiculoId)}"><input type="hidden" name="manutencaoId" value="${esc(fixed.id)}"><div class="field"><span>Veículo</span><strong>${esc((Vehicles.find(state, fixed.veiculoId) || {}).placa || fixed.veiculoId)}</strong></div><div class="field"><span>Manutenção</span><strong>${esc(fixed.id)}</strong></div>`
       : `<label class="field">Veículo de destino (digite a placa)${UI.searchField('vehicle', state, { id: 'withdrawal-veiculo', name: 'veiculoId', placeholder: 'Ex.: DEM1A01', required: true, apenasAtivos: true })}</label><label class="field">Manutenção vinculada (opcional)<select name="manutencaoId"><option value="">Retirada direta, sem manutenção</option>${openMaintenanceOptions(state)}</select></label>`;
-    const partRowHtml = (index) => `<div class="withdrawal-item-row form-grid" data-item-index="${index}"><label class="field">Peça (digite código ou descrição)${UI.searchField('part', state, { id: `withdrawal-peca-${index}`, name: `pecaId_${index}`, placeholder: 'Ex.: FLT-1001 ou filtro', required: true })}</label><label class="field">Quantidade<input name="quantidade" inputmode="decimal" required placeholder="Ex.: 1 ou 1/2"></label><button type="button" class="btn btn-ghost" data-remove-item aria-label="Remover peça" ${index === 0 ? 'disabled' : ''}>Remover</button></div>`;
     const partField = fixed
       ? `<label class="field full">Peça retirada (digite código ou descrição)${UI.searchField('part', state, { id: 'withdrawal-peca', name: 'pecaId', placeholder: 'Ex.: FLT-1001 ou filtro', required: true })}</label><label class="field">Quantidade<input name="quantidade" inputmode="decimal" required placeholder="Ex.: 1 ou 1/2"></label>`
-      : `<div class="field full"><span>Peças e quantidades</span><div id="withdrawal-items" class="form-grid">${partRowHtml(0)}</div><button type="button" class="btn btn-ghost" id="add-withdrawal-item">Adicionar outra peça</button></div>`;
+      : `<div class="field full"><span>Peças e quantidades</span><div id="withdrawal-items" class="form-grid">${withdrawalPartRowHtml(state, 0)}</div><button type="button" class="btn btn-ghost" id="add-withdrawal-item">Adicionar outra peça</button></div>`;
     return `<form class="card form-grid" data-form="withdrawal" novalidate><div class="form-errors full"></div>${partField}${vehicleField}<label class="field">Data da retirada<input name="data" type="date" required value="${Utils.todayIso()}"></label><label class="field">Responsável pela solicitação<input name="responsavel" required></label><label class="field full">Observação<input name="observacao" placeholder="Opcional"></label><div class="form-actions full"><button class="btn btn-primary" type="submit">Confirmar retirada</button></div></form>`;
   }
 
