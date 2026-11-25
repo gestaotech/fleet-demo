@@ -62,43 +62,180 @@ const WarehouseScreens = (function () {
     return `
       <form class="card form-grid" data-form="withdrawal" novalidate>
         <div class="form-errors full"></div>
-        <label class="field full">Peça retirada (digite código ou descrição)${UI.searchField('part', state, { id: 'withdrawal-peca', name: 'pecaId', placeholder: 'Ex.: FLT-1001 ou filtro', required: true })}</label>
         ${vehicleField}
-        <label class="field">Quantidade (use fração, como 1/2)<input name="quantidade" inputmode="decimal" required placeholder="Ex.: 1 ou 1/2"></label>
         <label class="field">Data da retirada<input name="data" type="date" required value="${Utils.todayIso()}"></label>
         <label class="field">Responsável pela solicitação<input name="responsavel" required></label>
         <label class="field">Observação<input name="observacao" placeholder="Opcional"></label>
+        
+        <div class="field full" style="grid-column: 1 / -1;">
+          <div class="itens-retirada">
+            <div class="itens-header">
+              <span class="item-col item-peca">Peça (digite código ou descrição)</span>
+              <span class="item-col item-qtd">Quantidade</span>
+              <span class="item-col item-saldo">Saldo</span>
+              <span class="item-col item-acoes"></span>
+            </div>
+            <div id="itens-lista"></div>
+            <button type="button" class="btn btn-ghost btn-sm" id="add-item-btn">+ Adicionar peça</button>
+          </div>
+        </div>
+        
         <div class="form-actions full">
           <button class="btn btn-primary" type="submit">Confirmar retirada</button>
         </div>
       </form>`;
   }
 
-  /* Liga o formulário de retirada. onDone recebe a movimentação registrada. */
+  /* Liga o formulário de retirada. onDone recebe a lista de movimentações registradas. */
   function bindWithdrawalForm(form, state, ctx, opts = {}, onDone) {
-    const syncSearch = UI.bindSearchFields(form, state);
     if (!opts.maintenance) bindVehicleMaintenanceFilter(form);
+    const syncSearch = UI.bindSearchFields(form, state);
+    
+    const lista = form.querySelector('#itens-lista');
+    const addBtn = form.querySelector('#add-item-btn');
+    
+    // Função para criar uma linha de item
+    function criarLinhaItem(index) {
+      const div = document.createElement('div');
+      div.className = 'item-linha';
+      div.dataset.index = index;
+      div.innerHTML = `
+        <div class="item-col item-peca">${UI.searchField('part', state, { 
+          id: `withdrawal-peca-${index}`, 
+          name: `itens[${index}][pecaId]`, 
+          placeholder: 'Ex.: FLT-1001 ou filtro', 
+          required: true 
+        })}</div>
+        <div class="item-col item-qtd">
+          <label class="field" style="margin:0;">
+            <input name="itens[${index}][quantidade]" inputmode="decimal" required placeholder="Ex.: 1 ou 1/2">
+          </label>
+        </div>
+        <div class="item-col item-saldo">
+          <span class="hint" data-saldo-hint="${index}"></span>
+        </div>
+        <div class="item-col item-acoes">
+          <button type="button" class="btn btn-ghost btn-sm btn-remover" title="Remover" data-index="${index}">✕</button>
+        </div>
+      `;
+      return div;
+    }
+    
+    // Inicializa com um item
+    let proximoIndex = 0;
+    function adicionarItem() {
+      const linha = criarLinhaItem(proximoIndex);
+      lista.appendChild(linha);
+      // Liga a busca de saldo para este item
+      const busca = linha.querySelector(`[data-search-for="itens[${proximoIndex}][pecaId]"]`);
+      const saldoHint = linha.querySelector(`[data-saldo-hint="${proximoIndex}"]`);
+      if (busca && saldoHint) {
+        busca.addEventListener('input', () => {
+          const termo = busca.value;
+          const resultado = state.pecas.find(p => 
+            Utils.searchKey(p.codigo) === Utils.searchKey(termo) || 
+            Utils.searchKey(p.descricao).includes(Utils.searchKey(termo))
+          );
+          if (resultado) {
+            saldoHint.textContent = `Saldo: ${Warehouse.balance(state, resultado.id)}`;
+          } else {
+            saldoHint.textContent = '';
+          }
+        });
+      }
+      proximoIndex++;
+    }
+    
+    adicionarItem();
+    
+    addBtn.addEventListener('click', adicionarItem);
+    
+    // Remove item
+    lista.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-remover')) {
+        const linha = e.target.closest('.item-linha');
+        // Não permite remover se for o único
+        if (lista.children.length > 1) {
+          linha.remove();
+        }
+      }
+    });
+    
     form.addEventListener('submit', event => {
       event.preventDefault();
       if (form.dataset.sending === 'true') return;
       form.dataset.sending = 'true';
       const button = form.querySelector('button[type="submit"]');
       button.disabled = true;
+      
       syncSearch();
-      const data = readForm(form);
-      const result = opts.maintenance
-        ? Maintenance.registerWithdrawal(ctx.state, opts.maintenance.id, data)
-        : Warehouse.registerWithdrawal(ctx.state, data);
-      if (!result.ok) {
-        UI.showErrors(form.querySelector('.form-errors'), result.errors);
+      
+      // Coleta todos os itens
+      const itens = [];
+      const erros = [];
+      lista.querySelectorAll('.item-linha').forEach((linha, i) => {
+        const pecaId = linha.querySelector(`[name="itens[${i}][pecaId]"]`).value;
+        const quantidade = linha.querySelector(`[name="itens[${i}][quantidade]"]`).value;
+        if (!pecaId) erros.push(`Item ${i + 1}: selecione a peça.`);
+        if (!quantidade) erros.push(`Item ${i + 1}: informe a quantidade.`);
+        if (pecaId && quantidade) {
+          itens.push({ pecaId, quantidade });
+        }
+      });
+      
+      if (itens.length === 0) erros.push('Adicione pelo menos uma peça.');
+      
+      if (erros.length) {
+        UI.showErrors(form.querySelector('.form-errors'), erros);
         form.dataset.sending = '';
         button.disabled = false;
         return;
       }
+      
+      // Dados comuns
+      const formData = readForm(form);
+      const dataComum = {
+        veiculoId: formData.veiculoId,
+        manutencaoId: formData.manutencaoId || null,
+        data: formData.data,
+        responsavel: formData.responsavel,
+        observacao: formData.observacao
+      };
+      
+      // Registra cada item
+      const resultados = [];
+      let temErro = false;
+      
+      for (const item of itens) {
+        const dadosItem = {
+          ...dataComum,
+          pecaId: item.pecaId,
+          quantidade: item.quantidade
+        };
+        
+        const resultado = opts.maintenance
+          ? Maintenance.registerWithdrawal(ctx.state, opts.maintenance.id, dadosItem)
+          : Warehouse.registerWithdrawal(ctx.state, dadosItem);
+        
+        if (!resultado.ok) {
+          temErro = true;
+          erros.push(`${item.pecaId}: ${resultado.errors.join(', ')}`);
+        } else {
+          resultados.push(resultado.value);
+        }
+      }
+      
+      if (temErro) {
+        UI.showErrors(form.querySelector('.form-errors'), erros);
+        form.dataset.sending = '';
+        button.disabled = false;
+        return;
+      }
+      
       ctx.save().then(ok => {
         if (!ok) return;
-        ctx.toast('Retirada confirmada e saldo atualizado.');
-        onDone(result.value);
+        ctx.toast(`${resultados.length} peça(s) retirada(s) e saldo atualizado.`);
+        onDone(resultados);
       });
     });
   }

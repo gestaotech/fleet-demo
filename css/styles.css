@@ -262,6 +262,20 @@ legend { font-weight: 600; color: var(--gray-700); padding: 0 6px; }
   .section-tabs a { padding: 8px 10px; font-size: 0.9rem; }
 }
 
+/* Itens de retirada (múltiplas peças) */
+.itens-retirada { margin-top: 8px; }
+.itens-header { display: grid; grid-template-columns: 1fr 100px 100px 50px; gap: 8px; font-size: 0.8rem; color: var(--gray-500); font-weight: 600; padding-bottom: 4px; border-bottom: 1px solid var(--gray-200); margin-bottom: 8px; }
+.item-linha { display: grid; grid-template-columns: 1fr 100px 100px 50px; gap: 8px; align-items: end; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--gray-200); }
+.item-linha:last-child { border-bottom: none; }
+.item-col { display: flex; flex-direction: column; gap: 2px; }
+.item-col label { margin: 0; }
+.item-col input { width: 100%; }
+.item-saldo .hint { font-size: 0.8rem; color: var(--gray-600); min-height: 1.2em; }
+.item-acoes { display: flex; justify-content: flex-end; }
+.btn-sm { padding: 4px 8px; font-size: 0.75rem; }
+.btn-remover { color: var(--red); background: none; border: none; cursor: pointer; font-size: 1rem; padding: 2px 6px; line-height: 1; }
+.btn-remover:hover { background: var(--red-50); border-radius: 4px; }
+
 /* Impressão */
 @media print {
   body { background: var(--white); }
