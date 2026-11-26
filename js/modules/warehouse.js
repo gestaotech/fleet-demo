@@ -455,9 +455,10 @@ const WarehouseScreens = (function () {
         veiculoId: Search.vehicleFilter(ctx.state, main.querySelector('#w-veiculo').value),
         pecaId: Search.partFilter(ctx.state, main.querySelector('#w-peca').value),
       });
+      const podeExcluir = Boolean(ctx.user && Array.isArray(ctx.user.permissoes) && ctx.user.permissoes.includes('admin'));
       const rows = report.rows.map(r => {
         const vehicle = Vehicles.find(ctx.state, r.veiculoId);
-        return [
+        const cells = [
           Utils.formatDate(r.data),
           esc(r.pecaDescricao),
           Utils.formatQuantity(r.quantidade),
@@ -466,6 +467,7 @@ const WarehouseScreens = (function () {
           money(r.valorTotal),
           esc(r.origem),
         ];
+        return podeExcluir ? { cells, footer: `<button type="button" class="btn btn-danger btn-small" data-delete-withdrawal="${esc(r.id)}">Excluir retirada</button>` } : cells;
       });
       main.querySelector('#withdrawal-list').innerHTML = table(
         [{ label: 'Data' }, { label: 'Peça' }, { label: 'Qtd.', align: 'right' }, { label: 'Veículo' }, { label: 'Responsável' },
@@ -473,6 +475,16 @@ const WarehouseScreens = (function () {
         rows,
         'Nenhuma retirada no período selecionado.',
       ) + `<p class="totals">Total de unidades: <strong>${report.totals.quantidade}</strong> · Valor total: <strong>${money(report.totals.valor)}</strong></p>`;
+      if (podeExcluir) main.querySelectorAll('[data-delete-withdrawal]').forEach(button => button.addEventListener('click', async () => {
+        if (!UI.confirmAction('Confirma a exclusão desta retirada? O saldo da peça será recomposto e o histórico/custos relacionados serão atualizados.')) return;
+        const result = Warehouse.deleteWithdrawal(ctx.state, button.dataset.deleteWithdrawal);
+        if (!result.ok) { ctx.toast(result.errors[0], 'error'); return; }
+        button.disabled = true;
+        const saved = await ctx.save();
+        if (!saved) { ctx.refresh(); return; }
+        ctx.toast('Retirada excluída e saldo recomposto.');
+        ctx.refresh();
+      }));
     };
     ['#w-from', '#w-to'].forEach(sel => main.querySelector(sel).addEventListener('change', renderList));
     ['#w-veiculo', '#w-peca'].forEach(sel => { main.querySelector(sel).addEventListener('input', renderList); main.querySelector(sel).addEventListener('change', renderList); });
