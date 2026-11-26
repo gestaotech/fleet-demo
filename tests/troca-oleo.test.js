@@ -17,13 +17,13 @@ const troca = (overrides = {}) => ({
   quilometragem: '50200',
   especificacao: '15W40 mineral',
   quantidade: '28',
-  valorUnitario: '32,40',
+  valorUnitario: '',
   responsavel: 'Márcia Lopes',
   observacao: '',
   intervaloKm: '10000',
   intervaloMeses: '6',
   manutencaoId: '',
-  pecaId: '',
+  pecaId: 'PEC-006',
   ...overrides,
 });
 
@@ -100,13 +100,13 @@ test('próxima data considera meses com ajuste de fim de mês', () => {
   assert.equal(info.limiteData, '2026-02-28');
 });
 
-test('registro de troca cria identificador e custo próprio', () => {
+test('registro de troca cria identificador e baixa a peça do estoque', () => {
   const s = app.fresh();
   const result = O().create(s, troca());
   assert.equal(result.ok, true, result.errors && result.errors.join(' '));
   assert.equal(result.value.id, 'OLE-0007');
-  assert.equal(result.value.movimentacaoId, null);
-  assert.equal(O().ownCost(result.value), 907.2);
+  assert.ok(result.value.movimentacaoId);
+  assert.equal(O().ownCost(result.value), 0);
 });
 
 test('troca exige data, km, especificação, quantidade e responsável', () => {
@@ -121,11 +121,13 @@ test('troca exige data, km, especificação, quantidade e responsável', () => {
   assert.match(texto, /responsável/i);
 });
 
-test('troca com quantidade fracionada é aceita quando não usa estoque', () => {
+test('troca com quantidade fracionada é aceita e baixa o estoque', () => {
   const s = app.fresh();
+  const saldoAntes = W().balance(s, 'PEC-006');
   const result = O().create(s, troca({ quantidade: '28,5' }));
   assert.equal(result.ok, true, result.errors && result.errors.join(' '));
   assert.equal(result.value.quantidade, 28.5);
+  assert.equal(W().balance(s, 'PEC-006'), saldoAntes - 28.5);
 });
 
 test('troca que usa óleo do almoxarifado baixa o estoque e não duplica o custo', () => {
@@ -147,7 +149,7 @@ test('troca sem saldo suficiente é recusada sem gravar nada', () => {
   const antes = s.trocasOleo.length;
   const result = O().create(s, troca({ veiculoId: 'VEI-004', quilometragem: '31100', quantidade: '9999', pecaId: 'PEC-006', valorUnitario: '' }));
   assert.equal(result.ok, false);
-  assert.match(result.errors.join(' '), /saldo insuficiente/i);
+  assert.match(result.errors.join(' '), /estoque insuficiente/i);
   assert.equal(s.trocasOleo.length, antes);
 });
 
