@@ -1,5 +1,3 @@
-"use strict";
-
 -- Armazenamento persistente dos documentos PDF dos veículos (CRLV).
 -- A chave única corresponde ao ON CONFLICT usado pela API: um CRLV por veículo/empresa.
 CREATE TABLE IF NOT EXISTS vehicle_documents (
