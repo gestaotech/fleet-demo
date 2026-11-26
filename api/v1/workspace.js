@@ -175,7 +175,7 @@ async function responderGravacao(req, res, sessao) {
   // Campos ocultos na leitura são preservados no servidor; o cliente não pode apagá-los
   // ao salvar um módulo para o qual não possui permissão de escrita.
   for (const [colecao, modulo] of Object.entries(COLECAO_MODULO)) {
-    if (sessao.permissoes.includes(modulo)) continue;
+    if (sessao.permissoes.includes("admin") || sessao.permissoes.includes(modulo)) continue;
     const valorPadrao = colecao === "configuracoes" ? {} : [];
     const recebidoColecao = recebido[colecao] ?? valorPadrao;
     const atualColecao = atual.state[colecao] ?? valorPadrao;
