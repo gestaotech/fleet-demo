@@ -158,7 +158,7 @@ async function responderGravacao(req, res, sessao) {
   if (!Number.isInteger(base) || base < 1) {
     throw new ApiError(400, "DADOS_INVALIDOS", "Informe a revisão lida (baseRevision).");
   }
-  const novo = corpo.state;
+  const recebido = corpo.state;
   if (!novo || typeof novo !== "object" || Array.isArray(novo)) {
     throw new ApiError(400, "DADOS_INVALIDOS", "Informe o estado a ser gravado (state).");
   }
@@ -168,6 +168,15 @@ async function responderGravacao(req, res, sessao) {
     throw new ApiError(409, "REVISAO_DESATUALIZADA", "Os dados foram alterados por outro usuário. Recarregue antes de salvar.", {
       revisaoAtual: atual.revision,
     });
+  }
+
+  const novo = { ...recebido };
+  // Campos ocultos na leitura são preservados no servidor; o cliente não pode apagá-los
+  // ao salvar um módulo para o qual não possui permissão de escrita.
+  for (const [colecao, modulo] of Object.entries(COLECAO_MODULO)) {
+    if (!sessao.permissoes.includes(modulo)) {
+      novo[colecao] = atual.state[colecao] ?? (colecao === "configuracoes" ? {} : []);
+    }
   }
 
   const formato = validarFormato(novo);
