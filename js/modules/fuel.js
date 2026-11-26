@@ -211,14 +211,17 @@ const FuelScreens = (function () {
 
   function stockEntry(main, params, ctx) {
     const today = Utils.todayIso();
+    const isAdmin = Boolean(ctx.user && Array.isArray(ctx.user.permissoes) && ctx.user.permissoes.includes('admin'));
     main.innerHTML = `
       ${pageHeader('Entrada de combustível no estoque', 'Registra combustível adquirido para o estoque da empresa.')}
       <form class="card form-grid" id="fuel-entry-form" novalidate>
         <div class="form-errors full" id="form-errors"></div>
         <label class="field">Data<input name="data" type="date" required value="${esc(today)}"></label>
         <label class="field">Quantidade (litros)<input name="quantidade" inputmode="decimal" required placeholder="Ex.: 500,0"></label>
-        <label class="field">Valor total (R$)<input name="valorTotal" inputmode="decimal" required placeholder="0,00"></label>
+        <label class="field">Valor por litro (R$)<input name="valorUnitario" inputmode="decimal" placeholder="Ex.: 5,89"></label>
+        <label class="field">Valor total (R$)<input name="valorTotal" inputmode="decimal" placeholder="0,00"></label>
         <label class="field">Fornecedor<input name="fornecedor" required placeholder="Ex.: Posto Rodovia"></label>
+        <p class="hint full">Informe o preço por litro, o valor total ou ambos. Se informar apenas um, o outro será calculado automaticamente.</p>
         <label class="field">Responsável<input name="responsavel" required></label>
         <label class="field full">Observação<input name="observacao" placeholder="Opcional"></label>
         <div class="form-actions full">
@@ -236,15 +239,17 @@ const FuelScreens = (function () {
       const rows = entradas.map(e => [
         Utils.formatDate(e.data),
         Utils.formatQuantity(e.quantidade),
-        money(e.valorUnitario),
+        money(Number.isFinite(e.valorUnitario) ? e.valorUnitario : (e.valorTotal / e.quantidade)),
         money(e.valorTotal),
         esc(e.fornecedor),
         esc(e.responsavel),
         esc(e.observacao || '—'),
+        isAdmin ? `<button type="button" class="btn btn-small btn-danger" data-delete-fuel-entry="${esc(e.id)}">Excluir</button>` : '',
       ]);
       main.querySelector('#fuel-entry-list').innerHTML = table(
         [{ label: 'Data' }, { label: 'Litros', align: 'right' }, { label: 'Preço/litro', align: 'right' },
-          { label: 'Valor total', align: 'right' }, { label: 'Fornecedor' }, { label: 'Responsável' }, { label: 'Observação' }],
+          { label: 'Valor total', align: 'right' }, { label: 'Fornecedor' }, { label: 'Responsável' }, { label: 'Observação' },
+          ...(isAdmin ? [{ label: 'Ações' }] : [])],
         rows,
         'Nenhuma entrada de combustível registrada.',
       );
@@ -254,18 +259,30 @@ const FuelScreens = (function () {
       event.preventDefault();
       const data = readForm(event.currentTarget);
       const quantidade = Utils.parseDecimal(data.quantidade);
-      const valorTotal = Utils.parseMoney(data.valorTotal);
+      const valorTotalInformado = data.valorTotal === '' ? null : Utils.parseMoney(data.valorTotal);
+      const valorUnitarioInformado = data.valorUnitario === '' ? null : Utils.parseDecimal(data.valorUnitario);
       const errors = [];
       if (!Utils.isValidDate(data.data)) errors.push('Informe a data da entrada.');
       if (!(quantidade > 0)) errors.push('Informe a quantidade de litros maior que zero.');
-      if (!Number.isFinite(valorTotal) || valorTotal <= 0) errors.push('Informe o valor total pago maior que zero.');
+      if (valorTotalInformado === null && valorUnitarioInformado === null) errors.push('Informe o valor por litro ou o valor total.');
+      if (valorTotalInformado !== null && (!Number.isFinite(valorTotalInformado) || valorTotalInformado <= 0)) errors.push('Informe um valor total maior que zero.');
+      if (valorUnitarioInformado !== null && (!Number.isFinite(valorUnitarioInformado) || valorUnitarioInformado <= 0)) errors.push('Informe um valor por litro maior que zero.');
       if (!Utils.normalizeText(data.fornecedor)) errors.push('Informe o fornecedor.');
       if (!Utils.normalizeText(data.responsavel)) errors.push('Informe o responsável.');
+      if (quantidade > 0 && valorTotalInformado > 0 && valorUnitarioInformado > 0 &&
+          Math.abs(quantidade * valorUnitarioInformado - valorTotalInformado) > 0.10) {
+        errors.push('O valor total não corresponde à quantidade multiplicada pelo preço por litro.');
+      }
       if (errors.length) {
         UI.showErrors(main.querySelector('#form-errors'), errors);
         return;
       }
-      const valorUnitario = Utils.round3(valorTotal / quantidade);
+      const valorUnitario = valorUnitarioInformado !== null
+        ? Utils.round3(valorUnitarioInformado)
+        : Utils.round3(valorTotalInformado / quantidade);
+      const valorTotal = valorTotalInformado !== null
+        ? Utils.round2(valorTotalInformado)
+        : Utils.round2(quantidade * valorUnitario);
       const entrada = {
         id: Utils.nextId('ENT', ctx.state.entradasCombustivel || [], 4),
         data: data.data,
@@ -281,6 +298,29 @@ const FuelScreens = (function () {
       ctx.save().then(ok => {
         if (!ok) return;
         ctx.toast('Entrada de combustível registrada.');
+        ctx.refresh();
+      });
+    });
+
+    main.querySelector('#fuel-entry-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-delete-fuel-entry]');
+      if (!button) return;
+      if (!isAdmin) {
+        ctx.toast('Somente administradores podem excluir entradas de combustível.', 'error');
+        return;
+      }
+      const id = button.dataset.deleteFuelEntry;
+      const entrada = (ctx.state.entradasCombustivel || []).find(item => item.id === id);
+      if (!entrada) return;
+      if (!UI.confirmAction(`Deseja excluir a entrada de ${Utils.formatQuantity(entrada.quantidade)} litros registrada em ${Utils.formatDate(entrada.data)}?`)) return;
+      ctx.state.entradasCombustivel = ctx.state.entradasCombustivel.filter(item => item.id !== id);
+      button.disabled = true;
+      ctx.save().then(ok => {
+        if (!ok) {
+          ctx.refresh();
+          return;
+        }
+        ctx.toast('Entrada de combustível excluída.');
         ctx.refresh();
       });
     });
