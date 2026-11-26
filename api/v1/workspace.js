@@ -159,7 +159,7 @@ async function responderGravacao(req, res, sessao) {
     throw new ApiError(400, "DADOS_INVALIDOS", "Informe a revisão lida (baseRevision).");
   }
   const recebido = corpo.state;
-  if (!novo || typeof novo !== "object" || Array.isArray(novo)) {
+  if (!recebido || typeof recebido !== "object" || Array.isArray(recebido)) {
     throw new ApiError(400, "DADOS_INVALIDOS", "Informe o estado a ser gravado (state).");
   }
 
