@@ -160,3 +160,25 @@ test('pesquisa do almoxarifado ignora caixa e acentos e combina com o filtro de 
   assert.equal(W().filterInventory(rows, {}).length, rows.length);
   assert.equal(W().filterInventory(rows, { termo: '' }).length, rows.length);
 });
+
+
+test('não permite excluir retirada vinculada a gasto externo', () => {
+  const s = app.fresh();
+  const movimento = s.movimentacoes.find(m => m.tipo === 'Saida');
+  movimento.gastoExternoId = 'GEX-TESTE';
+  s.gastosExternos = [{ id: 'GEX-TESTE', retiradaEstoque: true }];
+  const result = W().deleteWithdrawal(s, movimento.id);
+  assert.equal(result.ok, false);
+  assert.match(result.errors[0], /vinculada a um gasto externo/);
+  assert.equal(s.movimentacoes.some(m => m.id === movimento.id), true);
+});
+
+test('não permite excluir retirada vinculada a troca de óleo', () => {
+  const s = app.fresh();
+  const movimento = s.movimentacoes.find(m => m.tipo === 'Saida');
+  s.trocasOleo.push({ id: 'TRO-TESTE', movimentacaoId: movimento.id });
+  const result = W().deleteWithdrawal(s, movimento.id);
+  assert.equal(result.ok, false);
+  assert.match(result.errors[0], /vinculada a uma troca de óleo/);
+  assert.equal(s.movimentacoes.some(m => m.id === movimento.id), true);
+});
