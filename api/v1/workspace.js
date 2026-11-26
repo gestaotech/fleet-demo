@@ -165,6 +165,32 @@ async function responderGravacao(req, res, sessao) {
     }
   }
 
+  const entradasAtuais = atual.state.entradasCombustivel || [];
+  const entradasNovas = novo.entradasCombustivel || [];
+  const idsEntradasNovas = new Set(entradasNovas.map((entrada) => entrada.id));
+  const entradasExcluidas = entradasAtuais.filter((entrada) => !idsEntradasNovas.has(entrada.id));
+  if (entradasExcluidas.length && !sessao.permissoes.includes("admin")) {
+    await registrarAuditoria({
+      acao: "ENTRADA_COMBUSTIVEL_EXCLUSAO_NEGADA",
+      entidade: "entradasCombustivel",
+      entidadeId: sessao.empresa.id,
+      resultado: "DENIED",
+      usuarioId: sessao.usuario.id,
+      empresaId: sessao.empresa.id,
+      metadados: { ids: entradasExcluidas.map((entrada) => entrada.id) },
+      ipHash: hashIp(req),
+      userAgent: userAgent(req),
+    });
+    throw new ApiError(403, "EXCLUSAO_RESTRITA", "Somente administradores podem excluir entradas de combustível.");
+  }
+  if (entradasExcluidas.length) {
+    const litrosDisponiveis = entradasNovas.reduce((total, entrada) => total + Number(entrada.quantidade || 0), 0);
+    const litrosConsumidos = (novo.abastecimentos || []).reduce((total, abastecimento) => total + Number(abastecimento.litros || 0), 0);
+    if (litrosDisponiveis - litrosConsumidos < -0.001) {
+      throw new ApiError(422, "ENTRADA_COMBUSTIVEL_EM_USO", "Não é possível excluir esta entrada: o saldo de combustível ficaria negativo.");
+    }
+  }
+
   const ajustes = ajustesDaAlteracao(atual.state, novo);
   if (ajustes.alterados.length) {
     throw new ApiError(422, "AJUSTE_IMUTAVEL", "Ajustes de estoque já registrados não podem ser alterados ou excluídos.");
