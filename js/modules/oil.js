@@ -140,7 +140,9 @@ const OilScreens = (function () {
         </label>
         <label class="field">Data da troca<input name="data" type="date" required value="${esc(current.data)}"></label>
         <label class="field">Quilometragem da troca (km)<input name="quilometragem" type="number" min="0" step="1" inputmode="numeric" required value="${esc(current.quilometragem)}"></label>
-        <label class="field">Especificação do óleo<input name="especificacao" required value="${esc(current.especificacao)}" placeholder="Ex.: 15W40 mineral"></label>
+        ${editing
+          ? `<label class="field">Especificação do óleo<input name="especificacao" required value="${esc(current.especificacao)}" placeholder="Ex.: 15W40 mineral"></label>`
+          : `<label class="field">Especificação do óleo${UI.searchField('part', ctx.state, { id: 'oil-peca-busca', name: 'pecaId', placeholder: 'Digite o código ou a descrição e selecione o óleo do estoque', required: true })}</label>`}
         <label class="field">Quantidade (litros)<input name="quantidade" inputmode="decimal" required value="${esc(current.quantidade)}" placeholder="Ex.: 28"></label>
         <label class="field">Valor unitário (R$/litro)<input name="valorUnitario" inputmode="decimal" value="${esc(current.valorUnitario)}" placeholder="0,00"></label>
         <label class="field">Intervalo em quilômetros<input name="intervaloKm" type="number" min="0" step="1" inputmode="numeric" value="${esc(current.intervaloKm)}" placeholder="Ex.: 10000"></label>
@@ -148,9 +150,7 @@ const OilScreens = (function () {
         <label class="field">Manutenção vinculada (opcional)
           <select name="manutencaoId"><option value="">Sem vínculo</option>${maintenanceOptions(ctx.state, current.manutencaoId)}</select>
         </label>
-        <label class="field">Óleo do almoxarifado (opcional)${UI.searchField('part', ctx.state, { id: 'oil-peca-busca', name: 'pecaId', placeholder: 'Código ou descrição; vazio = não usar estoque', selectedId: current.pecaId })}
-          <span class="hint" data-part-hint></span>
-        </label>
+        ${!editing ? '<p class="hint full" data-part-hint>Digite o código ou a descrição e selecione um óleo cadastrado no almoxarifado. A troca fará a baixa automática do estoque.</p>' : ''}
         <label class="field">Responsável pela troca<input name="responsavel" required value="${esc(current.responsavel)}"></label>
         <label class="field full">Observação<input name="observacao" value="${esc(current.observacao)}" placeholder="Opcional"></label>
         <p class="hint full">Se o óleo vier do almoxarifado, o custo é o da retirada de estoque (não é somado duas vezes) e a quantidade deve ser um número inteiro de litros.</p>
@@ -181,20 +181,22 @@ const OilScreens = (function () {
       if (manutencao.selectedOptions[0] && manutencao.selectedOptions[0].hidden) manutencao.value = '';
     };
     const updatePartHint = () => {
+      if (!peca || !partHint) return;
       const part = Warehouse.findPart(ctx.state, peca.value);
       if (!part) {
-        partHint.textContent = 'Sem retirada de estoque: o custo será quantidade × valor unitário.';
-        valorUnitario.readOnly = false;
+        partHint.textContent = 'Digite o código ou a descrição e selecione um óleo cadastrado no estoque.';
+        if (!editing) valorUnitario.readOnly = true;
         return;
       }
-      partHint.textContent = `Saldo ${Warehouse.balance(ctx.state, part.id)} L · valor unitário ${money(part.valorUnitario)} (o custo passa a ser o da retirada).`;
+      const saldo = Warehouse.balance(ctx.state, part.id);
+      partHint.textContent = `Selecionado: ${part.codigo} · ${part.descricao} · saldo disponível: ${Utils.formatQuantity(saldo)} L · preço unitário: ${money(part.valorUnitario)}.`;
       valorUnitario.value = String(part.valorUnitario).replace('.', ',');
       valorUnitario.readOnly = true;
     };
 
     const syncSearch = UI.bindSearchFields(formEl, ctx.state);
     veiculo.addEventListener('change', () => { updateKmHint(); updateMaintenanceFilter(); });
-    peca.addEventListener('change', updatePartHint);
+    if (peca) peca.addEventListener('change', updatePartHint);
     updateKmHint();
     updateMaintenanceFilter();
     updatePartHint();
