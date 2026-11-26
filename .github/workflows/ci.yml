@@ -31,12 +31,20 @@ jobs:
           cache: npm
 
       - name: Instalar dependências reproduzíveis
-        run: npm ci
+        run: npm install --package-lock-only --ignore-scripts && npm ci
 
       - name: Auditar dependências npm
         run: |
           npm audit --json > npm-audit.json || true
           node -e 'const a=require("./npm-audit.json"); for (const [name,v] of Object.entries(a.vulnerabilities || {})) console.log(JSON.stringify({name,severity:v.severity,isDirect:v.isDirect,range:v.range,fixAvailable:v.fixAvailable,via:v.via.map(x=>typeof x === "string" ? x : x.title)})); console.log("Resumo:", JSON.stringify(a.metadata?.vulnerabilities || {}))'
+          npm audit --audit-level=low
+
+      - name: Disponibilizar lockfile atualizado para sincronização
+        uses: actions/upload-artifact@v5
+        with:
+          name: package-lock-atualizado
+          path: package-lock.json
+          if-no-files-found: error
 
       - name: Validar estrutura e build
         run: npm run build
@@ -76,7 +84,7 @@ jobs:
           cache: npm
 
       - name: Instalar dependências reproduzíveis
-        run: npm ci
+        run: npm install --package-lock-only --ignore-scripts && npm ci
 
       - name: Criar banco separado para o contexto da aplicação
         env:
