@@ -38,6 +38,7 @@ const {
   colecoesAlteradas,
   modulosNecessarios,
   ajustesDaAlteracao,
+  serializarCanonico,
 } = require("../../lib/workspace");
 
 const LIMITE_CORPO_BYTES = 1500 * 1024;
@@ -174,9 +175,19 @@ async function responderGravacao(req, res, sessao) {
   // Campos ocultos na leitura são preservados no servidor; o cliente não pode apagá-los
   // ao salvar um módulo para o qual não possui permissão de escrita.
   for (const [colecao, modulo] of Object.entries(COLECAO_MODULO)) {
-    if (!sessao.permissoes.includes(modulo)) {
-      novo[colecao] = atual.state[colecao] ?? (colecao === "configuracoes" ? {} : []);
+    if (sessao.permissoes.includes(modulo)) continue;
+    const valorPadrao = colecao === "configuracoes" ? {} : [];
+    const recebidoColecao = recebido[colecao] ?? valorPadrao;
+    const atualColecao = atual.state[colecao] ?? valorPadrao;
+    const podeLerColecao = sessao.permissoes.includes("admin") ||
+      sessao.permissoes.includes("relatorios") ||
+      (sessao.permissoes.includes("manutencao") && ["veiculos", "pecas", "movimentacoes", "pecasExternas"].includes(colecao)) ||
+      (sessao.permissoes.includes("combustivel") && colecao === "veiculos");
+    if (podeLerColecao && serializarCanonico(recebidoColecao) !== serializarCanonico(atualColecao)) {
+      throw new ApiError(403, "SEM_PERMISSAO", `Seu perfil não pode alterar a coleção ${colecao}.`);
     }
+    // Coleções ocultas na leitura são preservadas; coleções visíveis de apoio são somente leitura.
+    novo[colecao] = atualColecao;
   }
 
   const formato = validarFormato(novo);
