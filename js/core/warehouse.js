@@ -436,12 +436,23 @@ const Warehouse = (function () {
     });
   }
 
-  /* Exclusão administrativa de retirada: remover a saída recompõe automaticamente o saldo. */
+  /* Não permite apagar uma saída que sustenta um gasto ou uma troca de óleo. */
   function deleteWithdrawal(state, movementId) {
     const index = state.movimentacoes.findIndex(m => m.id === movementId && m.tipo === 'Saida');
     if (index < 0) return { ok: false, errors: ['Retirada não encontrada.'] };
-    const [movement] = state.movimentacoes.splice(index, 1);
-    return { ok: true, value: movement };
+    const movement = state.movimentacoes[index];
+    const gastoVinculado = (state.gastosExternos || []).some(g =>
+      g.retiradaEstoque && (g.id === movement.gastoExternoId || g.movimentacaoId === movementId)
+    );
+    if (gastoVinculado) {
+      return { ok: false, errors: ['Esta retirada está vinculada a um gasto externo e não pode ser excluída.'] };
+    }
+    const trocaVinculada = (state.trocasOleo || []).some(t => t.movimentacaoId === movementId);
+    if (trocaVinculada) {
+      return { ok: false, errors: ['Esta retirada está vinculada a uma troca de óleo e não pode ser excluída.'] };
+    }
+    const [removed] = state.movimentacoes.splice(index, 1);
+    return { ok: true, value: removed };
   }
 
   /* filtros: { from, to, veiculoId, pecaId } */
