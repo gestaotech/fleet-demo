@@ -111,7 +111,7 @@ test('registro de troca cria identificador e baixa a peça do estoque', () => {
 
 test('troca exige data, km, especificação, quantidade e responsável', () => {
   const s = app.fresh();
-  const result = O().create(s, troca({ data: '', quilometragem: '', especificacao: '', quantidade: '0', responsavel: '' }));
+  const result = O().create(s, troca({ data: '', quilometragem: '', especificacao: '', quantidade: '0', responsavel: '', pecaId: '' }));
   assert.equal(result.ok, false);
   const texto = result.errors.join(' ');
   assert.match(texto, /data da troca/i);
@@ -121,13 +121,13 @@ test('troca exige data, km, especificação, quantidade e responsável', () => {
   assert.match(texto, /responsável/i);
 });
 
-test('troca com quantidade fracionada é aceita e baixa o estoque', () => {
+test('troca com quantidade fracionada é recusada quando usa estoque em litros inteiros', () => {
   const s = app.fresh();
   const saldoAntes = W().balance(s, 'PEC-006');
   const result = O().create(s, troca({ quantidade: '28,5' }));
-  assert.equal(result.ok, true, result.errors && result.errors.join(' '));
-  assert.equal(result.value.quantidade, 28.5);
-  assert.equal(W().balance(s, 'PEC-006'), saldoAntes - 28.5);
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(' '), /número inteiro de litros/i);
+  assert.equal(W().balance(s, 'PEC-006'), saldoAntes);
 });
 
 test('troca que usa óleo do almoxarifado baixa o estoque e não duplica o custo', () => {
