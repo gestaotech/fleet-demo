@@ -116,10 +116,40 @@ async function lerEstadoAtual(empresaId, usuarioId) {
   return { revision: Number(relido[0].revision), state: relido[0].state };
 }
 
+
+/* Retorna somente dados dos módulos liberados na sessão. Relatórios/admin têm leitura global. */
+function filtrarEstadoPorPermissao(estado, permissoes) {
+  const todas = permissoes.includes("admin") || permissoes.includes("relatorios");
+  const visiveis = new Set();
+  if (todas) {
+    Object.keys(COLECAO_MODULO).forEach((colecao) => visiveis.add(colecao));
+  } else {
+    if (permissoes.includes("veiculos")) visiveis.add("veiculos");
+    if (permissoes.includes("almoxarifado")) {
+      ["pecas", "ferramentas", "retiradasFerramentas", "movimentacoes", "pecasExternas", "gastosExternos"].forEach((c) => visiveis.add(c));
+    }
+    if (permissoes.includes("manutencao")) {
+      ["manutencoes", "despesas", "trocasOleo", "pecasExternas", "veiculos", "pecas", "movimentacoes"].forEach((c) => visiveis.add(c));
+    }
+    if (permissoes.includes("combustivel")) {
+      ["abastecimentos", "entradasCombustivel", "veiculos"].forEach((c) => visiveis.add(c));
+    }
+  }
+  const filtrado = { schemaVersion: estado.schemaVersion };
+  for (const colecao of Object.keys(COLECAO_MODULO)) {
+    if (colecao === "configuracoes") {
+      filtrado.configuracoes = permissoes.includes("admin") ? (estado.configuracoes || {}) : {};
+    } else {
+      filtrado[colecao] = visiveis.has(colecao) ? (estado[colecao] || []) : [];
+    }
+  }
+  return filtrado;
+}
+
 async function responderLeitura(req, res, sessao) {
   exigirAlgumaPermissao(sessao);
   const atual = await lerEstadoAtual(sessao.empresa.id, sessao.usuario.id);
-  enviarDados(res, 200, atual);
+  enviarDados(res, 200, { revision: atual.revision, state: filtrarEstadoPorPermissao(atual.state, sessao.permissoes) });
 }
 
 async function responderGravacao(req, res, sessao) {
