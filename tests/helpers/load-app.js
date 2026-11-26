@@ -31,7 +31,7 @@ const FILES = [
 function loadApp() {
   const sandbox = {
     console,
-    document: { cookie: '', getElementById: () => null },
+    document: { cookie: '', getElementById: () => null, addEventListener: () => {} },
     fetch: async () => {
       throw new Error('fetch não configurado no teste');
     },
