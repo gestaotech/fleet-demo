@@ -244,7 +244,7 @@ const FuelScreens = (function () {
         esc(e.fornecedor),
         esc(e.responsavel),
         esc(e.observacao || '—'),
-        isAdmin ? `<button type="button" class="btn btn-small btn-danger" data-delete-fuel-entry="${esc(e.id)}">Excluir</button>` : '',
+        ...(isAdmin ? [`<button type="button" class="btn btn-small btn-danger" data-delete-fuel-entry="${esc(e.id)}">Excluir</button>`] : []),
       ]);
       main.querySelector('#fuel-entry-list').innerHTML = table(
         [{ label: 'Data' }, { label: 'Litros', align: 'right' }, { label: 'Preço/litro', align: 'right' },
