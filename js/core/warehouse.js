@@ -436,6 +436,14 @@ const Warehouse = (function () {
     });
   }
 
+  /* Exclusão administrativa de retirada: remover a saída recompõe automaticamente o saldo. */
+  function deleteWithdrawal(state, movementId) {
+    const index = state.movimentacoes.findIndex(m => m.id === movementId && m.tipo === 'Saida');
+    if (index < 0) return { ok: false, errors: ['Retirada não encontrada.'] };
+    const [movement] = state.movimentacoes.splice(index, 1);
+    return { ok: true, value: movement };
+  }
+
   /* filtros: { from, to, veiculoId, pecaId } */
   function withdrawals(state, filters = {}) {
     return state.movimentacoes
@@ -467,6 +475,6 @@ const Warehouse = (function () {
     findPart, balance, isLowStock, inventory, filterInventory,
     validatePart, createPart, updatePart, deletePart, addEntry, validateAdjustment, addAdjustment,
     validateWithdrawal, registerWithdrawal, registerWithdrawals, registerSpendingWithdrawal, listTools, createTool, loanTool, returnTool, registerExternalPart,
-    movementsOf, withdrawals, externalParts,
+    movementsOf, withdrawals, deleteWithdrawal, externalParts,
   };
 })();
