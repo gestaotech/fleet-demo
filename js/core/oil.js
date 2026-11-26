@@ -133,7 +133,9 @@ const Oil = (function () {
     const veiculo = Vehicles.find(state, data.veiculoId);
     const dataTroca = data.data;
     const quilometragem = Utils.parseInteger(data.quilometragem);
-    const especificacao = Utils.normalizeText(data.especificacao);
+    const pecaId = data.pecaId && data.pecaId !== 'Nenhuma' ? data.pecaId : null;
+    const pecaSelecionada = pecaId ? Warehouse.findPart(state, pecaId) : null;
+    const especificacao = pecaSelecionada ? pecaSelecionada.descricao : Utils.normalizeText(data.especificacao);
     const quantidade = Utils.parseDecimal(data.quantidade);
     const valorUnitario = Utils.parseMoney(data.valorUnitario);
     const responsavel = Utils.normalizeText(data.responsavel);
@@ -142,7 +144,6 @@ const Oil = (function () {
     const intervaloMeses = data.intervaloMeses === '' || data.intervaloMeses === undefined || data.intervaloMeses === null
       ? null : Utils.parseInteger(data.intervaloMeses);
     const manutencaoId = data.manutencaoId && data.manutencaoId !== 'Nenhuma' ? data.manutencaoId : null;
-    const pecaId = data.pecaId && data.pecaId !== 'Nenhuma' ? data.pecaId : null;
 
     if (!veiculo) errors.push('Selecione o veículo.');
     else if (!Vehicles.isActive(veiculo) && (!existing || existing.veiculoId !== veiculo.id)) {
@@ -154,17 +155,21 @@ const Oil = (function () {
     } else {
       errors.push('Informe a quilometragem da troca de óleo.');
     }
-    if (!especificacao) errors.push('Informe a especificação do óleo utilizado.');
+    if (!especificacao) errors.push('Selecione a especificação do óleo no almoxarifado.');
     if (!Number.isFinite(quantidade) || quantidade <= 0) errors.push('Informe a quantidade de óleo em litros maior que zero.');
     if (!responsavel) errors.push('Informe o responsável pela troca.');
     if (intervaloKm !== null && (!Number.isInteger(intervaloKm) || intervaloKm <= 0)) errors.push('O intervalo em quilômetros deve ser um número inteiro maior que zero.');
     if (intervaloMeses !== null && (!Number.isInteger(intervaloMeses) || intervaloMeses <= 0)) errors.push('O intervalo em meses deve ser um número inteiro maior que zero.');
 
+    if (!existing && !pecaId) errors.push('Digite e selecione um óleo cadastrado no almoxarifado.');
     if (pecaId) {
       const peca = state.pecas.find(p => p.id === pecaId);
-      if (!peca) errors.push('Peça de óleo não encontrada no almoxarifado.');
+      if (!peca) errors.push('Óleo selecionado não encontrado no almoxarifado.');
       else if (!Number.isInteger(quantidade) || quantidade <= 0) {
         errors.push('Para retirar óleo do almoxarifado, a quantidade deve ser um número inteiro de litros.');
+      } else {
+        const saldo = Warehouse.balance(state, peca.id);
+        if (quantidade > saldo) errors.push(`Estoque insuficiente de ${peca.descricao}: disponível ${saldo} L, solicitado ${quantidade} L.`);
       }
     } else if (data.valorUnitario !== '' && data.valorUnitario !== undefined && data.valorUnitario !== null) {
       if (!Number.isFinite(valorUnitario) || valorUnitario < 0) errors.push('Informe um valor unitário válido (zero ou maior).');
