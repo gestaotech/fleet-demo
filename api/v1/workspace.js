@@ -165,6 +165,25 @@ async function responderGravacao(req, res, sessao) {
     }
   }
 
+  const idsMovimentacoesNovas = new Set((novo.movimentacoes || []).map((movimento) => movimento.id));
+  const retiradasExcluidas = (atual.state.movimentacoes || []).filter((movimento) =>
+    movimento.tipo === "Saida" && !idsMovimentacoesNovas.has(movimento.id)
+  );
+  if (retiradasExcluidas.length && !sessao.permissoes.includes("admin")) {
+    await registrarAuditoria({
+      acao: "RETIRADA_PECA_EXCLUSAO_NEGADA",
+      entidade: "movimentacoes",
+      entidadeId: sessao.empresa.id,
+      resultado: "DENIED",
+      usuarioId: sessao.usuario.id,
+      empresaId: sessao.empresa.id,
+      metadados: { ids: retiradasExcluidas.map((movimento) => movimento.id) },
+      ipHash: hashIp(req),
+      userAgent: userAgent(req),
+    });
+    throw new ApiError(403, "EXCLUSAO_RESTRITA", "Somente administradores podem excluir retiradas de peças.");
+  }
+
   const entradasAtuais = atual.state.entradasCombustivel || [];
   const entradasNovas = novo.entradasCombustivel || [];
   const idsEntradasNovas = new Set(entradasNovas.map((entrada) => entrada.id));
